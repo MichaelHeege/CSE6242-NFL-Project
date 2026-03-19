@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NFL Play Predictor</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+body { font-family: Arial; background:#f4f4f4; margin:20px; }
+.controls { margin-bottom:15px; }
+
+.field { background:#2e8b57; border:4px solid #333; }
+
+.yard-line { stroke:white; stroke-width:1; }
+.hash { stroke:white; stroke-width:1; }
+.number { fill:white; font-size:18px; font-weight:bold; opacity:.85; }
+
+.scrimmage-line { stroke:blue; stroke-width:4; cursor:ew-resize; }
+.firstdown-line { stroke:yellow; stroke-width:4; cursor:ew-resize; }
+
+.endzone-text {
+  fill:white;
+  font-size:24px;
+  font-weight:bold;
+  opacity:0.5;
+}
+
+.output {
+  margin-top:15px;
+  font-size:22px;
+  font-weight:bold;
+}
+
+</style>
+</head>
+<body>
+
+<h2>NFL Play Success Predictor</h2>
+
+<div class="controls">
+
+<label>Offense:
+<select id="offense"></select>
+</label>
+
+<label>Defense:
+<select id="defense"></select>
+</label>
+
+<label>Play Type:
+<select id="playType">
+<option>Run</option>
+<option>Pass</option>
+<option>Field Goal</option>
+</select>
+</label>
+
+<label>Shotgun:
+<input type="checkbox" id="shotgun">
+</label>
+
+<label>Goal to Go:
+<input type="checkbox" id="goalToGo">
+</label>
+
+<label>Half:
+<select id="half">
+<option value="1">1st</option>
+<option value="2">2nd</option>
+</select>
+</label>
+
+<label>Time Left (seconds):
+<input type="number" id="timeLeft" value="900" min="0" max="1800">
+</label>
+
+<label>Direction:
+<select id="direction">
+<option value="right">Left → Right</option>
+<option value="left">Right → Left</option>
+</select>
+</label>
+
+</div>
+
+<svg id="field" width="1000" height="350" class="field"></svg>
+
+<div class="output" id="prediction"></div>
+
+<script>
+
+// ---------------- TEAMS ----------------
+const teams = [
+"Arizona Cardinals","Atlanta Falcons","Baltimore Ravens","Buffalo Bills",
+"Carolina Panthers","Chicago Bears","Cincinnati Bengals","Cleveland Browns",
+"Dallas Cowboys","Denver Broncos","Detroit Lions","Green Bay Packers",
+"Houston Texans","Indianapolis Colts","Jacksonville Jaguars","Kansas City Chiefs",
+"Las Vegas Raiders","Los Angeles Chargers","Los Angeles Rams","Miami Dolphins",
+"Minnesota Vikings","New England Patriots","New Orleans Saints","New York Giants",
+"New York Jets","Philadelphia Eagles","Pittsburgh Steelers","San Francisco 49ers",
+"Seattle Seahawks","Tampa Bay Buccaneers","Tennessee Titans","Washington Commanders"
+];
+
+teams.forEach(t=>{
+  d3.select("#offense").append("option").text(t);
+  d3.select("#defense").append("option").text(t);
+});
+
+// ---------------- FIELD SETUP ----------------
+const width = 1000;
+const height = 350;
+const margin = 50;
+
+const svg = d3.select("#field");
+
+const xScale = d3.scaleLinear()
+  .domain([0,100])
+  .range([margin,width-margin]);
+
+// Endzones
+svg.append("rect")
+  .attr("x",0)
+  .attr("y",0)
+  .attr("width",margin)
+  .attr("height",height)
+  .attr("fill","#1b5e20");
+
+svg.append("rect")
+  .attr("x",width-margin)
+  .attr("y",0)
+  .attr("width",margin)
+  .attr("height",height)
+  .attr("fill","#1b5e20");
+
+// Endzone Text
+const leftEZ = svg.append("text")
+  .attr("class","endzone-text")
+  .attr("x",margin/2)
+  .attr("y",height/2)
+  .attr("text-anchor","middle")
+  .attr("transform",`rotate(-90, ${margin/2}, ${height/2})`);
+
+const rightEZ = svg.append("text")
+  .attr("class","endzone-text")
+  .attr("x",width-margin/2)
+  .attr("y",height/2)
+  .attr("text-anchor","middle")
+  .attr("transform",`rotate(90, ${width-margin/2}, ${height/2})`);
+
+// Yard lines
+for(let i=0;i<=100;i+=5){
+  svg.append("line")
+    .attr("x1",xScale(i))
+    .attr("x2",xScale(i))
+    .attr("y1",0)
+    .attr("y2",height)
+    .attr("class","yard-line");
+}
+
+// Hash marks
+for(let i=0;i<=100;i++){
+  svg.append("line")
+    .attr("x1",xScale(i))
+    .attr("x2",xScale(i))
+    .attr("y1",height/2 - 60)
+    .attr("y2",height/2 - 50)
+    .attr("class","hash");
+
+  svg.append("line")
+    .attr("x1",xScale(i))
+    .attr("x2",xScale(i))
+    .attr("y1",height/2 + 50)
+    .attr("y2",height/2 + 60)
+    .attr("class","hash");
+}
+
+// Yard numbers
+for(let i=10;i<=50;i+=10){
+
+  svg.append("text")
+    .attr("x",xScale(i))
+    .attr("y",height/2 - 80)
+    .attr("class","number")
+    .attr("text-anchor","middle")
+    .text(i);
+
+  svg.append("text")
+    .attr("x",xScale(i))
+    .attr("y",height/2 + 120)
+    .attr("class","number")
+    .attr("text-anchor","middle")
+    .attr("transform",`rotate(180, ${xScale(i)}, ${height/2 + 120})`)
+    .text(i);
+
+  if(i !== 50){
+    svg.append("text")
+      .attr("x",xScale(100-i))
+      .attr("y",height/2 - 80)
+      .attr("class","number")
+      .attr("text-anchor","middle")
+      .text(i);
+
+    svg.append("text")
+      .attr("x",xScale(100-i))
+      .attr("y",height/2 + 120)
+      .attr("class","number")
+      .attr("text-anchor","middle")
+      .attr("transform",`rotate(180, ${xScale(100-i)}, ${height/2 + 120})`)
+      .text(i);
+  }
+}
+
+// ---------------- GAME STATE ----------------
+let scrimmage = 25;
+let firstDown = 35;
+
+const scrimmageLine = svg.append("line")
+  .attr("class","scrimmage-line")
+  .attr("y1",0)
+  .attr("y2",height);
+
+const firstDownLine = svg.append("line")
+  .attr("class","firstdown-line")
+  .attr("y1",0)
+  .attr("y2",height);
+
+// ---------------- DRAG ----------------
+function dragLine(type,event){
+  const direction = document.getElementById("direction").value;
+
+  let yard = xScale.invert(event.x);
+  yard = Math.max(0,Math.min(100,yard));
+
+  if(direction==="left"){
+    yard = 100-yard;
+  }
+
+  if(type==="scrimmage"){
+    scrimmage = yard;
+    if(firstDown < scrimmage) firstDown = scrimmage + 1;
+  }
+
+  if(type==="first"){
+    firstDown = Math.max(scrimmage+1,yard);
+  }
+
+  update();
+}
+
+scrimmageLine.call(d3.drag().on("drag",(e)=>dragLine("scrimmage",e)));
+firstDownLine.call(d3.drag().on("drag",(e)=>dragLine("first",e)));
+
+// ---------------- UPDATE ----------------
+function update(){
+
+  const direction = document.getElementById("direction").value;
+  const playType = document.getElementById("playType").value;
+  const shotgun = document.getElementById("shotgun").checked;
+  const timeLeft = +document.getElementById("timeLeft").value;
+  const half = document.getElementById("half").value;
+  const goalToGo = document.getElementById("goalToGo").checked;
+  const offense = document.getElementById("offense").value;
+  const defense = document.getElementById("defense").value;
+
+  leftEZ.text(direction==="right" ? defense : offense);
+  rightEZ.text(direction==="right" ? offense : defense);
+
+  let scrimX = xScale(scrimmage);
+  let firstX = xScale(firstDown);
+
+  if(direction==="left"){
+    scrimX = xScale(100-scrimmage);
+    firstX = xScale(100-firstDown);
+  }
+
+  scrimmageLine.attr("x1",scrimX).attr("x2",scrimX);
+
+  // Goal to Go logic
+  if(goalToGo){
+    firstDownLine.style("display","none");
+  } else {
+    firstDownLine.style("display","block");
+    firstDownLine.attr("x1",firstX).attr("x2",firstX);
+  }
+
+  const yardsToTD = direction==="right"
+    ? 100 - scrimmage
+    : scrimmage;
+
+  let yardsRemaining;
+
+  if(goalToGo){
+    yardsRemaining = yardsToTD;
+  } else {
+    const yardsToFirst = firstDown - scrimmage;
+    yardsRemaining = Math.min(yardsToFirst,yardsToTD);
+  }
+
+  let probability = yardsRemaining>0 ? 1/yardsRemaining : 1;
+
+  if(playType==="Field Goal") probability *= 0.6;
+  if(shotgun) probability *= 1.05;
+  if(timeLeft < 120 && half==="2") probability *= 1.1;
+
+  probability = Math.min(probability,1);
+
+  const percent = (probability*100).toFixed(1);
+
+  d3.select("#prediction")
+    .text(`${playType} Success Probability: ${percent}%`);
+}
+
+update();
+d3.selectAll("select,input").on("change",update);
+
+</script>
+</body>
+</html>

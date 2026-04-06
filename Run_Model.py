@@ -8,7 +8,7 @@ from scipy import stats
 down = '2'
 ydstogo = 5
 shotgun = 0
-gap_x_location = 'right_end' #Options: 'left_end', 'left_guard', 'left_tackle', 'middle', 'right_tackle', 'right_guard', 'right_end'
+gap_x_location = 'middle' #Options: 'left_end', 'left_guard', 'left_tackle', 'middle', 'right_tackle', 'right_guard', 'right_end'
 qb_dropback = 0
 goal_to_go   = 0
 
@@ -157,7 +157,7 @@ ranges = list(dict.fromkeys(ranges))
 # Final output
 output = pd.DataFrame()
 output['Gain/Loss Range'] = ranges
-output['Yardline Range'] = [(c[0]+LOS,c[1]+LOS) for c in ranges]
+output['Yardline Range'] = [(-10,0)]+[(c[0]+LOS,c[1]+LOS) for c in ranges[1:-1]]+[(100,110)]
 output['Label'] = ['Safety']+[str(((['Loss of ','Gain of '][int(a>0)]+str(abs(a)),str(abs(b)))))[1:-1].replace(', ', ' to ').replace(r"'","") for a,b in ranges[1:-1]]+['Touchdown']
 output.loc[output['Gain/Loss Range']==(-0.5,0.5),'Label'] = 'No Gain'
 output['Probabilities'] = output['Gain/Loss Range'].apply(lambda c: predict_run_success_prob(

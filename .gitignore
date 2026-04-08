@@ -1,2 +1,3 @@
- # Adding .vscode/ to .gitignore to prevent committing VS Code workspace settings and extensions
- .vscode/
+# Adding .vscode/ to .gitignore to prevent committing VS Code workspace settings and extensions
+
+.vscode/

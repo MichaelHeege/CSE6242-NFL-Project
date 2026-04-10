@@ -120,3 +120,65 @@ Use this for standalone HTML files (no backend logic).
   py -m pip install -r requirements.txt
   ```
 * Use  CTRL+C in terminal to end servers
+
+
+
+# Flask Notes
+* FLASK uses Jinja as its templating engine. The HTML is considered a Jinja template (Since it has placeholders/directives/Jinja comments)
+* {{ }} is a Jinja placeholder for dynamic content (For example the model outputs)
+* The operation that converts a template into a complete HTML page is called rendering
+
+* "{% }" = Jinja directive
+* "{# }" = Jinja comments
+
+
+#Flask functions
+* To render a template can import a function render_template() 
+* This function takes a HTML template filename and a variable list of template arguments and returns the same template but with all the placeholder in it replaced with actual values 
+
+
+# HTML notes
+
+* HTML "form" is used to collect user input. It is a container for different types of input elements such as: text fields, checkboxes, radio buttons, submit buttons etc.
+
+```html
+<form>
+  <span>Show species class:</span>
+  <select name="class" onchange="this.form.submit()">
+    <option value="">All</option>
+    {% for o in option_list %}
+      <option value="{{ o }}" {% if filter_class == o %} selected {% endif %}>{{ o }}</option>
+    {% endfor %}
+  </select>
+</form>
+```
+# Breakdown of code
+
+```html
+<select name="class">
+```
+- Gives the control the key "class"
+
+```html
+<option>
+```
+- Provides a value (if absent, the option text is used)
+- The browser reads the selected option's value
+
+```html
+onchange="this.form.submit()"
+```
+- Calls the browser to submit the form immediately when the user picks an option
+
+- The form has no `method`, so the browser uses GET (method just tells how to send the form data )
+- The browser encodes all named controls as a query string: ?
+- With no `action`, the browser submits to the current page URL. (action just tells which URL to send the form to)
+
+Example:
+```
+/index?class=Mammal
+```
+
+
+
+

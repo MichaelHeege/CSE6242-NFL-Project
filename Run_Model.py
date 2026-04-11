@@ -2,18 +2,6 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-#############################################
-#                INPUTS
-#############################################
-down = '2'
-ydstogo = 5
-shotgun = 0
-gap_x_location = 'middle' #Options: 'left_end', 'left_guard', 'left_tackle', 'middle', 'right_tackle', 'right_guard', 'right_end'
-qb_dropback = 0
-goal_to_go   = 0
-
-LOS = 38
-
 ##############################################
 #             MY CODE
 ##############################################

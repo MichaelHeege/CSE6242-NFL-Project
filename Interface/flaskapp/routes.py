@@ -7,7 +7,7 @@ must begin with a slash."""
 
 from flaskapp import app
 from flask import render_template, request
-from Interface.backend.play_handler import Play, get_model
+from Interface.backend.play_handler import model_output
 
 
 # The following two lines define two routes for the Flask app, one for just
@@ -25,21 +25,11 @@ from Interface.backend.play_handler import Play, get_model
 @app.route('/index', methods=["GET", "POST"])
 def predict():
 
-    """Renders the html template"""
-    #Gets the play data from the request (HTML)and creates a Play object with it
-    play = Play(
-        game_clock=request.args.get("game_clock"),
-        quarter=request.args.get("quarter"),
-        down=request.args.get("down"),
-        play_type=request.args.get("play_type"),
-        formation=request.args.get("formation")
-    )
+    #Get the play type from the request (HTML) to determine which model to call:
+    play_type = request.args.get("play_type")
 
-    #Gets the model based on the play type
-    model = get_model(play.play_type)
-
-    #Gets the output of the model. model() returns the play function for the model 
-    model_output = model(play)
+    #Gets the model output based on the play type
+    output = model_output(play_type)
 
     # NEED TO EDIT BELOW CODE #
 
@@ -53,6 +43,5 @@ def predict():
         username=username(),
         option_list=dropdown_options,
         filter_class=filter_class,
-
 
     )

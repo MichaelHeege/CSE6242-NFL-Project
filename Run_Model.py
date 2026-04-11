@@ -135,9 +135,45 @@ def predict_run_success_prob(model, lower, upper,
 
 
 #############################################
-#            Getting Ranges
+#        Making it One Function
 #############################################
-ranges = ([(-1e6,-LOS)]
+def run_model(play):
+    assert hasattr(play, 'LOS'), "play.LOS does not exist"
+    assert 0 <= play.LOS <= 100, f"play.LOS must be between 0 and 100, got {play.LOS}"
+    LOS = play.LOS
+    
+    assert hasattr(play, 'goal_to_go'), "play.goal_to_go does not exist"
+    assert (play.goal_to_go in [0,1]), f"play.goal_to_go must be 0 or 1, got {play.goal_to_go}"
+    goal_to_go = play.goal_to_go
+    
+    assert hasattr(play, 'down'), "play.down does not exist"
+    assert (str(play.down) in ['1','2','3','4']), f"play.down must be 1, 2, 3, or 4, got {play.down}"
+    down = str(play.down)
+    
+    assert hasattr(play, 'ydstogo'), "play.ydstogo does not exist"
+    assert 0 <= play.ydstogo <= 100, f"play.ydstogo must be between 0 and 100, got {play.ydstogo}"
+    ydstogo = play.ydstogo
+    
+    assert hasattr(play, 'qb_dropback'), "play.qb_dropback does not exist"
+    assert (play.qb_dropback in [0,1]), f"play.qb_dropback must be 0 or 1, got {play.qb_dropback}"
+    qb_dropback = play.qb_dropback
+    
+    assert hasattr(play, 'shotgun'), "play.shotgun does not exist"
+    assert (play.shotgun in [0,1]), f"play.shotgun must be 0 or 1, got {play.shotgun}"
+    shotgun = play.shotgun
+    
+    assert hasattr(play, 'run_location'), "play.run_location does not exist"
+    assert (play.run_location in ['left','middle','right']), f"play.run_location must be left, middle, or right, got {play.run_location}"
+    assert hasattr(play, 'run_gap'), "play.run_gap does not exist"
+    assert (play.run_gap in ['end','tackle','guard']), f"play.run_location must be left, middle, or right, got {play.run_gap}"
+    
+    if(play.run_location=='middle'):
+        gap_x_location = 'middle'
+    else:
+        gap_x_location = play.run_location+"_"+play.run_gap
+    
+    
+    ranges = ([(-1e6,-LOS)]
           +[(-LOS,-LOS+(LOS%5))]
           +[(-LOS+(LOS%5)+5*(i-1),-LOS+(LOS%5)+5*i) for i in range(1,LOS//5+1)]
           +[(-0.5,0.5)]
@@ -145,31 +181,34 @@ ranges = ([(-1e6,-LOS)]
           +[(95+LOS%5-LOS,100-LOS)]
           +[(100-LOS,1e6)]
          )
-ranges = [(c[0], c[1] - 0.5) if c[1] == 0 else c for c in ranges]
-ranges = [(c[0] + 0.5, c[1]) if c[0] == 0 else c for c in ranges]
-ranges = [c for c in ranges if c[0]<c[1]]
-ranges = list(dict.fromkeys(ranges))
-
-
-
-
-
-# Final output
-output = pd.DataFrame()
-output['Gain/Loss Range'] = ranges
-output['Yardline Range'] = [(-10,0)]+[(c[0]+LOS,c[1]+LOS) for c in ranges[1:-1]]+[(100,110)]
-output['Label'] = ['Safety']+[str(((['Loss of ','Gain of '][int(a>0)]+str(abs(a)),str(abs(b)))))[1:-1].replace(', ', ' to ').replace(r"'","") for a,b in ranges[1:-1]]+['Touchdown']
-output.loc[output['Gain/Loss Range']==(-0.5,0.5),'Label'] = 'No Gain'
-output['Probabilities'] = output['Gain/Loss Range'].apply(lambda c: predict_run_success_prob(
-                                                                                model      = current_model,
-                                                                                lower      = c[0],
-                                                                                upper      = c[1],
-                                                                                goal_to_go = 0,
-                                                                                down       = down,
-                                                                                ydstogo    = ydstogo,
-                                                                                qb_dropback= qb_dropback,
-                                                                                shotgun    = shotgun,
-                                                                                gap_x_location    = gap_x_location)
-                                                         )
-print(sum(output['Probabilities']))
-display(output)
+    ranges = [(c[0], c[1] - 0.5) if c[1] == 0 else c for c in ranges]
+    ranges = [(c[0] + 0.5, c[1]) if c[0] == 0 else c for c in ranges]
+    ranges = [c for c in ranges if c[0]<c[1]]
+    ranges = list(dict.fromkeys(ranges))
+    
+    
+    output = pd.DataFrame()
+    output['Gain/Loss Range'] = ranges
+    output['Yardline Range'] = [(-10,0)]+[(c[0]+LOS,c[1]+LOS) for c in ranges[1:-1]]+[(100,110)]
+    output['Label'] = ['Safety']+[str(((['Loss of ','Gain of '][int(a>0)]+str(abs(a)),str(abs(b)))))[1:-1].replace(', ', ' to ').replace(r"'","") for a,b in ranges[1:-1]]+['Touchdown']
+    output.loc[output['Gain/Loss Range']==(-0.5,0.5),'Label'] = 'No Gain'
+    output['Probabilities'] = output['Gain/Loss Range'].apply(lambda c: predict_run_success_prob(
+                                                                                    model      = current_model,
+                                                                                    lower      = c[0],
+                                                                                    upper      = c[1],
+                                                                                    goal_to_go = goal_to_go,
+                                                                                    down       = down,
+                                                                                    ydstogo    = ydstogo,
+                                                                                    qb_dropback= qb_dropback,
+                                                                                    shotgun    = shotgun,
+                                                                                    gap_x_location    = gap_x_location))
+    first_down = predict_run_success_prob(model      = current_model,
+                                          lower      = ydstogo,
+                                          upper      = 1e6,
+                                          goal_to_go = goal_to_go,
+                                          down       = down,
+                                          ydstogo    = ydstogo,
+                                          qb_dropback= qb_dropback,
+                                          shotgun    = shotgun,
+                                          gap_x_location    = gap_x_location)
+    return output, first_down

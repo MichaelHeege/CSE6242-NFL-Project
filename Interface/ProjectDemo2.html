@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NFL Play Predictor</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+body { font-family: Arial; background:#f4f4f4; margin:20px; }
+.controls { margin-bottom:15px; }
+
+.field { background:#2e8b57; border:4px solid #333; }
+
+.yard-line { stroke:white; stroke-width:1; }
+.hash { stroke:white; stroke-width:1; }
+.number { fill:white; font-size:18px; font-weight:bold; opacity:.85; }
+
+.scrimmage-line { stroke:blue; stroke-width:4; cursor:ew-resize; }
+.firstdown-line { stroke:yellow; stroke-width:4; cursor:ew-resize; }
+
+.endzone-text {
+  fill:white;
+  font-size:24px;
+  font-weight:bold;
+  opacity:0.5;
+}
+
+.zone {
+  opacity:0.55;
+  stroke:black;
+}
+
+.zone-text {
+  font-size:12px;
+  font-weight:bold;
+  fill:black;
+}
+
+.los-highlight {
+  stroke:black;
+  stroke-width:5;
+  opacity:0.9;
+}
+
+.endzone-prob {
+  opacity:0.7;
+  stroke:white;
+  stroke-width:2;
+}
+</style>
+</head>
+<body>
+
+<h2>NFL Play Success Predictor</h2>
+
+<div class="controls">
+  <button onclick="predict()">Predict Play</button>
+  <button onclick="resetView()">Back to Selection</button>
+</div>
+
+<label>Play Type:
+<select id="playType">
+<option>Run</option>
+<option>Pass</option>
+</select>
+</label>
+
+<label>Air Yards:
+<input type="number" id="airYards" value="10">
+</label>
+
+<svg id="field" width="1000" height="350" class="field"></svg>
+
+<script>
+
+// ---------------- FIELD ----------------
+const width = 1000;
+const height = 350;
+const margin = 50;
+
+const svg = d3.select("#field");
+
+const xScale = d3.scaleLinear()
+  .domain([0,100])
+  .range([margin,width-margin]);
+
+// Endzones
+svg.append("rect").attr("x",0).attr("y",0).attr("width",margin).attr("height",height).attr("fill","#1b5e20");
+svg.append("rect").attr("x",width-margin).attr("y",0).attr("width",margin).attr("height",height).attr("fill","#1b5e20");
+
+// Yard lines
+for(let i=0;i<=100;i+=5){
+  svg.append("line")
+    .attr("x1",xScale(i))
+    .attr("x2",xScale(i))
+    .attr("y1",0)
+    .attr("y2",height)
+    .attr("class","yard-line");
+}
+
+// ---------------- STATE ----------------
+let scrimmage = 50;
+
+const scrimmageLine = svg.append("line")
+  .attr("class","scrimmage-line")
+  .attr("y1",0)
+  .attr("y2",height);
+
+scrimmageLine.call(d3.drag().on("drag",(e)=>{
+  scrimmage = Math.max(0,Math.min(100,xScale.invert(e.x)));
+  render();
+}));
+
+function render(){
+  scrimmageLine
+    .attr("x1",xScale(scrimmage))
+    .attr("x2",xScale(scrimmage));
+}
+
+render();
+
+// ---------------- COLOR ----------------
+const color = d3.scaleLinear()
+  .domain([0,0.2,0.5])
+  .range(["red","yellow","green"]);
+
+// ---------------- RESET ----------------
+function resetView(){
+  svg.selectAll(".zone").remove();
+  svg.selectAll(".zone-text").remove();
+  svg.selectAll(".los-highlight").remove();
+}
+
+// ---------------- PREDICT ----------------
+function predict(){
+
+  resetView();
+
+  const playType = document.getElementById("playType").value;
+  const airYards = +document.getElementById("airYards").value;
+
+  if(playType === "Pass"){
+
+    const thirds = [
+      {label:"Left", y0:0, y1:height/3, shape:[0.10,0.20,0.20,0.07,0.03]},
+      {label:"Middle", y0:height/3, y1:2*height/3, shape:[0.05,0.15,0.25,0.10,0.05]},
+      {label:"Right", y0:2*height/3, y1:height, shape:[0.03,0.12,0.25,0.15,0.05]}
+    ];
+
+    thirds.forEach((t)=>{
+
+      let bins = [];
+
+      const offsets = [-10,-5,0,5,10];
+
+      // distribute 60% across bins
+      offsets.forEach((o, i)=>{
+        bins.push({
+          s: airYards + o,
+          e: airYards + o + 5,
+          p: t.shape[i]  // sums to 0.6
+        });
+      });
+
+      // incomplete = 40%
+      bins.push({s:-0.5,e:0.5,p:0.4,label:"INC"});
+
+      drawBins(bins, t.y1 - t.y0, t.y0);
+
+      svg.append("text")
+        .attr("x",margin + 10)
+        .attr("y",t.y0 + 15)
+        .attr("fill","white")
+        .attr("font-size","14px")
+        .text(t.label);
+    });
+  }
+
+  // LOS highlight
+  svg.append("line")
+    .attr("class","los-highlight")
+    .attr("x1",xScale(scrimmage))
+    .attr("x2",xScale(scrimmage))
+    .attr("y1",0)
+    .attr("y2",height);
+}
+
+// ---------------- DRAW ----------------
+function drawBins(bins, h, yOffset){
+
+  bins.forEach(b=>{
+
+    let x1 = xScale(scrimmage + b.s);
+    let x2 = xScale(scrimmage + b.e);
+
+    x1 = Math.max(margin,Math.min(width-margin,x1));
+    x2 = Math.max(margin,Math.min(width-margin,x2));
+
+    svg.append("rect")
+      .attr("class","zone")
+      .attr("x",Math.min(x1,x2))
+      .attr("y",yOffset)
+      .attr("width",Math.abs(x2-x1))
+      .attr("height",h)
+      .attr("fill",color(b.p));
+
+    svg.append("text")
+      .attr("class","zone-text")
+      .attr("x",(x1+x2)/2)
+      .attr("y",yOffset + h/2)
+      .attr("text-anchor","middle")
+      .text(b.label ? b.label : `${(b.p*100).toFixed(0)}%`);
+  });
+}
+
+</script>
+</body>
+</html>

@@ -6,8 +6,8 @@ must begin with a slash."""
 
 
 from flaskapp import app
-from flask import render_template, request
-from Interface.backend.play_handler import model_output
+from flask import request
+from Interface.backend.play_handler import select_model, json_response, model_output, response
 
 
 # The following two lines define two routes for the Flask app, one for just
@@ -25,23 +25,19 @@ from Interface.backend.play_handler import model_output
 @app.route('/index', methods=["GET", "POST"])
 def predict():
 
-    #Get the play type from the request (HTML) to determine which model to call:
+    #Get the play type (run or pass):
     play_type = request.args.get("play_type")
 
-    #Gets the model output based on the play type
-    output = model_output(play_type)
+    #Select the model:
+    selected_model = select_model(play_type)
 
-    # NEED TO EDIT BELOW CODE #
+    #Extract json from HTML: 
+    data = json_response(play_type)
 
-    # Renders the template using Jinja
-    # !!!!!!!!! Need to determine how outputs look like and how to pass them to the template !!!!!!!!!
+    #Get the model output
+    result = model_output(selected_model, data)
 
-    return render_template(
-        'index.html',
-        table=table,
-        header=header,
-        username=username(),
-        option_list=dropdown_options,
-        filter_class=filter_class,
+    #Send response:
+    return response(result)
 
-    )
+

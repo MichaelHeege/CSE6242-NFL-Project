@@ -3,74 +3,106 @@ This file contains functions for retrieving data and calling specific models
 to process the data
 """
 
-from flask import request
+from flask import request, jsonify, make_response
+from Run_Model import run_model
 
+# Helper functions for parsing input values
+def _int(val, default=None):
+    try:
+        if val is None:
+            return default
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+def _float(val, default=None):
+    try:
+        if val is None:
+            return default
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+#Play class to hold play data:
 class Play:
     def __init__(
         self,
+        #Run play parameters:
+        LOS=None,
+        goal_to_go=None,
+        down=None,
+        ydstogo=None,
+        qb_dropback=None,
+        shotgun=None,
+        run_location =None,
+        run_gap=None,
+
+        # Pass play parameters (Dummy parameters for now, will be updated when pass model is implemented):
         game_clock=None,
         quarter=None,
-        down=None,
         play_type=None,
         formation=None,
-        ydstogo=None,
-        shotgun=None,
-        qb_dropback=None,
-        goal_to_go=None,
-        gap_x_location=None,
-        LOS=None
+
     ):
+        #Run play parameters:
+        self.LOS = LOS
+        self.goal_to_go = goal_to_go
+        self.down = down
+        self.ydstogo = ydstogo
+        self.qb_dropback = qb_dropback
+        self.shotgun = shotgun
+        self.run_location  = run_location
+        self.run_gap = run_gap
+
+        #Pass play parameters (Dummy parameters for now, will be updated when pass model is implemented): 
         self.game_clock = game_clock
         self.quarter = quarter
-        self.down = down
         self.play_type = play_type
         self.formation = formation
-        self.ydstogo = ydstogo
-        self.shotgun = shotgun
-        self.qb_dropback = qb_dropback
-        self.goal_to_go = goal_to_go
-        self.gap_x_location = gap_x_location
-        self.LOS = LOS
 
 
-def model_output(play_type):
+#Extracts model: 
+def select_model(play_type):
     if play_type == "run":
-        # NEED TO EDIT BELOW CODE #
-        # Place holder for the run model, which should be called when the play type is "run"
-        # Will return the play function for the run model, which should be called in the predict() function in routes.py
-        
-        #Gets the play data from the request (HTML)and creates a Play object with it
-        run_play = Play(
-            game_clock=request.args.get("game_clock"),
-            quarter=request.args.get("quarter"),
-            down=request.args.get("down"),
-            play_type=request.args.get("play_type"),
-            formation=request.args.get("formation")
-        )
-        
-        Run_play_output = run_model(run_play) # Calls the run model with the play data and gets the output
-            
-        return Run_play_output 
-    
+        return run_model
     elif play_type == "pass":
-        # NEED TO EDIT BELOW CODE #
-        # Place holder for the pass model, which should be called when the play type is "pass"
-        # Will return the play function for the pass model, which should be called in the predict() function in routes.py
-    
-        #Gets the play data from the request (HTML)and creates a Play object with it
-        pass_play = Play(
-            game_clock=request.args.get("game_clock"),
-            quarter=request.args.get("quarter"),
-            down=request.args.get("down"),
-            play_type=request.args.get("play_type"),
-            formation=request.args.get("formation")
-        )
-        
-        Pass_play_output = pass_model(pass_play) # Calls the pass model with the play data and gets the output
-            
-        return Pass_play_output 
-    
+        # Placeholder for pass model function, which should be returned when the play type is "pass"
+        return None
     else:
-        return "Error: Invalid play type. Please select either 'run' or 'pass'."
+        raise ValueError("Invalid play type. Please select either 'run' or 'pass'.")
     
 
+#Extracts json from HTML: 
+def json_response(play_type):
+
+    #Gets the JSON data from the HTML request
+    request_data = request.get_json(silent=True) or {}
+
+    if play_type == "run":
+        # Extracts the run play data from the request (HTML) and creates a Play object
+        run_play = Play(
+            LOS=_int(request_data.get("LOS")),
+            goal_to_go=_int(request_data.get("goal_to_go")),
+            down=_int(request_data.get("down")),
+            ydstogo=_int(request_data.get("ydstogo")),
+            qb_dropback=_int(request_data.get("qb_dropback")),
+            shotgun=_int(request_data.get("shotgun")),
+            run_location=request_data.get("run_location"),
+            run_gap=request_data.get("run_gap")
+        )
+
+        return run_play
+
+
+    elif play_type == "pass":
+        # Extracts the pass play data from the request (HTML) and creates a Play object
+        pass
+
+#Runs the model: (Output = python dictionary)
+def model_output(selected_model, data):
+    return selected_model(data)
+
+#Sends response to HTML: 
+def response(model_output):
+    res = make_response(jsonify(model_output), 200)
+    return res

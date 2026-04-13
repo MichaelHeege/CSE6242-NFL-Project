@@ -133,13 +133,14 @@
     <h2>Football Field with User Input</h2>
 
     <div id="controls">
+        <form method="get" action="/index">
         <label for="gameClock">
             Game Clock
             <span class="help-icon">?
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <input type="text" id="gameClock" value="15:00" maxlength="5">
+        <input type="text" id="gameClock" name="game_clock" value="15:00" maxlength="5" onblur="this.form.submit()">
 
         <label for="quarterNumber">
             Quarter
@@ -147,7 +148,7 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="quarterNumber">
+        <select id="quarterNumber" name="quarter" onchange="this.form.submit()">
             <option value="1st">1st</option>
             <option value="2nd">2nd</option>
             <option value="3rd">3rd</option>
@@ -160,7 +161,7 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="downNumber">
+        <select id="downNumber" name="down" onchange="this.form.submit()">
             <option value="1">1st</option>
             <option value="2">2nd</option>
             <option value="3">3rd</option>
@@ -173,10 +174,13 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="playType">
+        <select id="playType" name="play_type" onchange="this.form.submit()">
             <option value="run">Run</option>
             <option value="pass">Pass</option>
         </select>
+        <button id="runModel" type="button">Run Model</button>
+        <span id="runStatus"></span>
+        </form>
     </div>
 
     <div id="chart-area"></div>
@@ -503,6 +507,46 @@
         d3.select("#playType").on("change", function() {updateLines();});
 
         updateLines();
+
+        // Collect inputs and POST JSON to /api/predict when Run Model clicked
+        function collectPayload() {
+            return {
+                play_type: document.getElementById('playType').value,
+                game_clock: document.getElementById('gameClock').value,
+                quarter: document.getElementById('quarterNumber').value,
+                down: document.getElementById('downNumber').value,
+                // compute LOS and ydstogo from current lines
+                LOS: getDisplayYard(lineOfScrimmageYard),
+                ydstogo: Math.max(0, Math.round(firstDownYard - lineOfScrimmageYard)),
+                _ts: Date.now()
+            };
+        }
+
+        document.getElementById('runModel').addEventListener('click', async function() {
+            const btn = this;
+            const status = document.getElementById('runStatus');
+            const payload = collectPayload();
+
+            btn.disabled = true;
+            status.textContent = 'Running...';
+
+            try {
+                const resp = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+                const j = await resp.json();
+                console.log('model result', j);
+                status.textContent = 'Done';
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+            }
+        });
     </script>
 </body>
 </html>

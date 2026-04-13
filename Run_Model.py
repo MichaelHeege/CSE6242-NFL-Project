@@ -199,4 +199,4 @@ def run_model(play):
                                           qb_dropback= qb_dropback,
                                           shotgun    = shotgun,
                                           gap_x_location    = gap_x_location)
-    return output, first_down
+    return output.to_dict('list'), first_down

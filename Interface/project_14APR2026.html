@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Football Field</title>
+    <script src="lib/d3.v5.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+
+        #controls {
+            margin-bottom: 20px;
+            padding: 12px;
+            background-color: white;
+            border: 1px solid #ccc;
+            width: fit-content;
+        }
+
+        #controls label {
+            margin-right: 8px;
+            font-weight: bold;
+        }
+
+        #controls input,
+        #controls select {
+            margin-right: 8px;
+            padding: 4px;
+        }
+
+        #chart-area {
+            margin-top: 10px;
+        }
+
+        #team-controls {
+            margin-bottom: 20px;
+            padding: 12px;
+            background-color: white;
+            border: 1px solid #ccc;
+            width: fit-content;
+        }
+
+        #team-controls label {
+            margin-right: 8px;
+            font-weight: bold;
+        }
+
+        #team-controls select {
+            margin-right: 8px;
+            padding: 4px;
+        }
+
+        #play-button-area {
+            margin-bottom: 20px;
+        }
+
+        #playButton {
+            padding: 8px 16px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .field-outline {
+            fill: #2e8b57;
+            stroke: #222;
+            stroke-width: 3px;
+        }
+
+        .endzone {
+            fill: #1f6b35;
+            stroke: none;
+        }
+
+        .yard-line {
+            stroke: white;
+            stroke-width: 1;
+            opacity: 0.7;
+        }
+
+        .hash-mark {
+            stroke: white;
+            stroke-width: 1;
+            opacity: 0.7;
+        }
+
+        .yard-number {
+            fill: white;
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            opacity: 0.9;
+        }
+
+        .scrimmage-line {
+            stroke: blue;
+            stroke-width: 4px;
+            cursor: ew-resize;
+        }
+
+        .first-down-line {
+            stroke: gold;
+            stroke-width: 4px;
+            cursor: ew-resize;
+        }
+
+        .line-label {
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+
+        .info-text {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 12px;
+        }
+
+        .help-icon {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            line-height: 10px;
+            text-align: center;
+            border: 1px solid black;
+            border-radius: 50%;
+            font-size: 7px;
+            font-weight: bold;
+            color: black;
+            cursor: default;
+            position: relative;
+            margin-left: 2px;
+        }
+
+        .tooltip-box {
+            display: none;
+            position: absolute;
+            top: 24px;
+            left: 0;
+            width: 220px;
+            padding: 8px;
+            background-color: white;
+            border: 1px solid black;
+            font-size: 12px;
+            font-weight: normal;
+            text-align: left;
+            z-index: 1000;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .help-icon:hover .tooltip-box {
+            display: block;
+        }
+
+        .hidden-control {
+            display: none;
+        }
+
+        .pass-point {
+            fill: red;
+            stroke: white;
+            stroke-width: 2px;
+        }
+
+        .run-lane-highlight {
+            fill: yellow;
+            opacity: 0.25;
+            stroke: white;
+            stroke-width: 1px;
+        }
+
+        .run-lane-label {
+            fill: white;
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Football Field with User Input</h2>
+
+    <div id="controls">
+        <label for="gameClock">
+            Game Clock
+            <span class="help-icon">?
+                <span class="tooltip-box">[description]</span>
+            </span>
+        </label>
+        <input type="text" id="gameClock" value="15:00" maxlength="5">
+
+        <label for="quarterNumber">
+            Quarter
+            <span class="help-icon">?
+                <span class="tooltip-box">[description]</span>
+            </span>
+        </label>
+        <select id="quarterNumber">
+            <option value="1st">1st</option>
+            <option value="2nd">2nd</option>
+            <option value="3rd">3rd</option>
+            <option value="4th">4th</option>
+        </select>
+
+        <label for="downNumber">
+            Down
+            <span class="help-icon">?
+                <span class="tooltip-box">[description]</span>
+            </span>
+        </label>
+        <select id="downNumber">
+            <option value="1">1st</option>
+            <option value="2">2nd</option>
+            <option value="3">3rd</option>
+            <option value="4">4th</option>
+        </select>
+
+        <label for="goalToGoal">
+            Goal to Goal
+            <span class="help-icon">?
+                <span class="tooltip-box">No first down line — must score.</span>
+            </span>
+        </label>
+        <input type="checkbox" id="goalToGoal">
+
+        <label for="playType">
+            Play Type
+            <span class="help-icon">?
+                <span class="tooltip-box">[description]</span>
+            </span>
+        </label>
+        <select id="playType">
+            <option value="run">Run</option>
+            <option value="pass">Pass</option>
+        </select>
+
+        <label for="formationType">
+            Formation
+            <span class="help-icon">?
+                <span class="tooltip-box">[description]</span>
+            </span>
+        </label>
+        <select id="formationType">
+            <option value="shotgun">Shotgun</option>
+            <option value="undercenter">Under Center</option>
+        </select>
+
+        <span id="passControls" class="hidden-control">
+            <label>
+                Pass Attempt
+                <span class="help-icon">?
+                    <span class="tooltip-box">Click anywhere on the field to place a pass attempt.</span>
+                </span>
+            </label>
+            <span style="margin-right: 1px;">Click field</span>
+        </span>
+
+            <span id="runGapControl" class="hidden-control">
+            <label for="runGap">
+                Run Gap
+                <span class="help-icon">?
+                    <span class="tooltip-box">Indicates a designed run gap.</span>
+                </span>
+            </label>
+            <input type="checkbox" id="runGap">
+        </span>
+
+    </div>
+
+    <div id="team-controls">
+        <label for="offenseTeam">
+            Offensive Team
+            <span class="help-icon">?
+                <span class="tooltip-box">Select the team on offense.</span>
+            </span>
+        </label>
+        <select id="offenseTeam">
+            <option value="ARI">Arizona Cardinals</option>
+            <option value="ATL">Atlanta Falcons</option>
+            <option value="BAL">Baltimore Ravens</option>
+            <option value="BUF">Buffalo Bills</option>
+            <option value="CAR">Carolina Panthers</option>
+            <option value="CHI">Chicago Bears</option>
+            <option value="CIN">Cincinnati Bengals</option>
+            <option value="CLE">Cleveland Browns</option>
+            <option value="DAL">Dallas Cowboys</option>
+            <option value="DEN">Denver Broncos</option>
+            <option value="DET">Detroit Lions</option>
+            <option value="GB">Green Bay Packers</option>
+            <option value="HOU">Houston Texans</option>
+            <option value="IND">Indianapolis Colts</option>
+            <option value="JAX">Jacksonville Jaguars</option>
+            <option value="KC">Kansas City Chiefs</option>
+            <option value="LV">Las Vegas Raiders</option>
+            <option value="LAC">Los Angeles Chargers</option>
+            <option value="LAR">Los Angeles Rams</option>
+            <option value="MIA">Miami Dolphins</option>
+            <option value="MIN">Minnesota Vikings</option>
+            <option value="NE">New England Patriots</option>
+            <option value="NO">New Orleans Saints</option>
+            <option value="NYG">New York Giants</option>
+            <option value="NYJ">New York Jets</option>
+            <option value="PHI">Philadelphia Eagles</option>
+            <option value="PIT">Pittsburgh Steelers</option>
+            <option value="SF">San Francisco 49ers</option>
+            <option value="SEA">Seattle Seahawks</option>
+            <option value="TB">Tampa Bay Buccaneers</option>
+            <option value="TEN">Tennessee Titans</option>
+            <option value="WAS">Washington Commanders</option>
+        </select>
+
+        <label for="defenseTeam">
+            Defensive Team
+            <span class="help-icon">?
+                <span class="tooltip-box">Select the team on defense.</span>
+            </span>
+        </label>
+        <select id="defenseTeam">
+            <option value="ARI">Arizona Cardinals</option>
+            <option value="ATL">Atlanta Falcons</option>
+            <option value="BAL">Baltimore Ravens</option>
+            <option value="BUF">Buffalo Bills</option>
+            <option value="CAR">Carolina Panthers</option>
+            <option value="CHI">Chicago Bears</option>
+            <option value="CIN">Cincinnati Bengals</option>
+            <option value="CLE">Cleveland Browns</option>
+            <option value="DAL">Dallas Cowboys</option>
+            <option value="DEN">Denver Broncos</option>
+            <option value="DET">Detroit Lions</option>
+            <option value="GB">Green Bay Packers</option>
+            <option value="HOU">Houston Texans</option>
+            <option value="IND">Indianapolis Colts</option>
+            <option value="JAX">Jacksonville Jaguars</option>
+            <option value="KC">Kansas City Chiefs</option>
+            <option value="LV">Las Vegas Raiders</option>
+            <option value="LAC">Los Angeles Chargers</option>
+            <option value="LAR">Los Angeles Rams</option>
+            <option value="MIA">Miami Dolphins</option>
+            <option value="MIN">Minnesota Vikings</option>
+            <option value="NE">New England Patriots</option>
+            <option value="NO">New Orleans Saints</option>
+            <option value="NYG">New York Giants</option>
+            <option value="NYJ">New York Jets</option>
+            <option value="PHI">Philadelphia Eagles</option>
+            <option value="PIT">Pittsburgh Steelers</option>
+            <option value="SF">San Francisco 49ers</option>
+            <option value="SEA">Seattle Seahawks</option>
+            <option value="TB">Tampa Bay Buccaneers</option>
+            <option value="TEN">Tennessee Titans</option>
+            <option value="WAS">Washington Commanders</option>
+        </select>
+    </div>
+
+    <div id="play-button-area">
+        <button id="playButton">Play</button>
+    </div>
+
+    <div id="chart-area"></div>
+    <div id="info" class="info-text"></div>
+
+    <script>
+        var currentPlayData = {};
+
+        var margin = {top: 20, right: 20, bottom: 20, left: 20};
+
+        var outerWidth = 1200;
+        var outerHeight = 500;
+
+        var width = outerWidth - margin.left - margin.right;
+        var height = outerHeight - margin.top - margin.bottom;
+
+        var totalYards = 120;
+
+        var lineOfScrimmageYard = 35;
+        var firstDownYard = 45;
+
+        var passX = xStartValue();
+        var passY = height / 2;
+
+        function xStartValue() {
+            return 45;
+        }
+
+        var svg = d3.select("#chart-area")
+            .append("svg")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight);
+
+        var g = svg.append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var xScale = d3.scaleLinear()
+            .domain([0, totalYards])
+            .range([0, width]);
+
+        g.append("rect")
+            .attr("class", "field-outline")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", height);
+
+        g.append("rect")
+            .attr("class", "endzone")
+            .attr("x", xScale(0))
+            .attr("y", 0)
+            .attr("width", xScale(10) - xScale(0))
+            .attr("height", height);
+
+        g.append("rect")
+            .attr("class", "endzone")
+            .attr("x", xScale(110))
+            .attr("y", 0)
+            .attr("width", xScale(120) - xScale(110))
+            .attr("height", height);
+
+        for (var yard = 10; yard <= 110; yard += 5) {
+            g.append("line")
+             .attr("class", "yard-line")
+             .attr("x1", xScale(yard))
+             .attr("x2", xScale(yard))
+             .attr("y1", 0)
+             .attr("y2", height);
+        }
+
+        for (var yard1 = 11; yard1 < 110; yard1 += 1) {
+            g.append("line")
+             .attr("class", "hash-mark")
+             .attr("x1", xScale(yard1))
+             .attr("x2", xScale(yard1))
+             .attr("y1", height * 0.38)
+             .attr("y2", height * 0.40);
+        }
+
+        for (var yard2 = 11; yard2 < 110; yard2 += 1) {
+            g.append("line")
+             .attr("class", "hash-mark")
+             .attr("x1", xScale(yard2))
+             .attr("x2", xScale(yard2))
+             .attr("y1", height * 0.60)
+             .attr("y2", height * 0.62);
+        }
+
+        var yardLabels = [
+            {yard: 20, label: "10"},
+            {yard: 30, label: "20"},
+            {yard: 40, label: "30"},
+            {yard: 50, label: "40"},
+            {yard: 60, label: "50"},
+            {yard: 70, label: "40"},
+            {yard: 80, label: "30"},
+            {yard: 90, label: "20"},
+            {yard: 100, label: "10"}
+        ];
+
+        g.selectAll(".top-yard-number")
+            .data(yardLabels)
+            .enter()
+            .append("text")
+            .attr("class", "yard-number")
+            .attr("x", function(d) { return xScale(d.yard); })
+            .attr("y", height * 0.25)
+            .text(function(d) { return d.label; });
+
+        g.selectAll(".bottom-yard-number")
+            .data(yardLabels)
+            .enter()
+            .append("text")
+            .attr("class", "yard-number")
+            .attr("x", function(d) { return xScale(d.yard); })
+            .attr("y", height * 0.75)
+            .attr("transform", function(d) {
+                return "rotate(180," + xScale(d.yard) + "," + (height * 0.75) + ")";
+            })
+            .text(function(d) { return d.label; });
+
+        var scrimmageLine = g.append("line")
+            .attr("class", "scrimmage-line")
+            .attr("x1", xScale(lineOfScrimmageYard))
+            .attr("x2", xScale(lineOfScrimmageYard))
+            .attr("y1", 0)
+            .attr("y2", height);
+
+        var firstDownLine = g.append("line")
+            .attr("class", "first-down-line")
+            .attr("x1", xScale(firstDownYard))
+            .attr("x2", xScale(firstDownYard))
+            .attr("y1", 0)
+            .attr("y2", height);
+
+        var scrimmageLabel = g.append("text")
+            .attr("class", "line-label")
+            .attr("x", xScale(lineOfScrimmageYard))
+            .attr("y", -5)
+            .attr("fill", "blue")
+            .text("LOS");
+
+        var firstDownLabel = g.append("text")
+            .attr("class", "line-label")
+            .attr("x", xScale(firstDownYard))
+            .attr("y", -5)
+            .attr("fill", "goldenrod")
+            .text("1st Down");
+
+        var passCircle = g.append("circle")
+            .attr("class", "pass-point")
+            .attr("r", 7)
+            .style("display", "none");
+
+        var runDirectionValue = "middle";
+
+        var runLaneHighlight = g.append("rect")
+            .attr("class", "run-lane-highlight")
+            .style("display", "none");
+
+        var runLaneLabel = g.append("text")
+            .attr("class", "run-lane-label")
+            .style("display", "none")
+    .text("Run Lane");
+
+        function cleanGameClock(clockValue) {
+            var parts;
+            var minutes;
+            var seconds;
+            var totalSeconds;
+
+            parts = clockValue.split(":");
+
+            if (parts.length !== 2) {
+                return "15:00";
+            }
+
+            minutes = Number(parts[0]);
+            seconds = Number(parts[1]);
+
+            if (isNaN(minutes) || isNaN(seconds)) {
+                return "15:00";
+            }
+
+            if (minutes < 0 || minutes > 15) {
+                return "15:00";
+            }
+
+            if (seconds < 0 || seconds > 59) {
+                return "15:00";
+            }
+
+            totalSeconds = minutes * 60 + seconds;
+
+            if (totalSeconds < 0 || totalSeconds > 900) {
+                return "15:00";
+            }
+
+            if (minutes === 15 && seconds > 0) {
+                return "15:00";
+            }
+
+            return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+        }
+
+        function getDisplayYard(rawYard) {
+            if (rawYard <= 60) {
+                return rawYard - 10;
+            } else {
+                return 110 - rawYard;
+            }
+        }
+
+        function getFieldSide(yValue) {
+            if (yValue < height / 3) {
+                return "left";
+            } else if (yValue < (2 * height / 3)) {
+                return "middle";
+            } else {
+                return "right";
+            }
+        }
+
+        function getRunLane(yValue) {
+            if (yValue < height / 3) {
+                return "left";
+            } else if (yValue < (2 * height / 3)) {
+                return "middle";
+            } else {
+                return "right";
+            }
+        }
+
+        function updateExtraControls() {
+            var playTypeValue = document.getElementById("playType").value;
+
+            if (playTypeValue === "run") {
+                document.getElementById("passControls").classList.add("hidden-control");
+                document.getElementById("runGapControl").classList.remove("hidden-control");
+
+                passCircle.style("display", "none");
+
+                runLaneHighlight.style("display", null);
+                runLaneLabel.style("display", null);
+            } else {
+                document.getElementById("passControls").classList.remove("hidden-control");
+                document.getElementById("runGapControl").classList.add("hidden-control");
+
+                passCircle.style("display", null);
+
+                runLaneHighlight.style("display", "none");
+                runLaneLabel.style("display", "none");
+            }
+        }
+
+        function updateLines() {
+            var yardsToGo;
+            var yardsToTouchdown;
+            var gameClockInput;
+            var gameClockValue;
+            var quarterValue;
+            var downValue;
+            var playTypeValue;
+            var formationValue;
+            var displayLOS;
+            var displayFirstDown;
+            var passAttemptLength;
+            var passFieldSide;
+            var passDisplayYard;
+            var infoText;
+            var offenseTeamValue;
+            var defenseTeamValue;
+            var goalToGoalChecked;
+            var runGapChecked;
+
+            lineOfScrimmageYard = Math.round(lineOfScrimmageYard);
+            firstDownYard = Math.round(firstDownYard);
+            goalToGoalChecked = document.getElementById("goalToGoal").checked;
+            runGapChecked = document.getElementById("runGap").checked;
+
+            if (lineOfScrimmageYard < 10) {
+                lineOfScrimmageYard = 10;
+            }
+            if (lineOfScrimmageYard > 110) {
+                lineOfScrimmageYard = 110;
+            }
+
+            if (firstDownYard < 10) {
+                firstDownYard = 10;
+            }
+            if (firstDownYard > 110) {
+                firstDownYard = 110;
+            }
+
+            if (!goalToGoalChecked && firstDownYard <= lineOfScrimmageYard) {
+                firstDownYard = Math.min(lineOfScrimmageYard + 1, 110);
+            }
+
+            if (passX < 10) {
+                passX = 10;
+            }
+            if (passX > 110) {
+                passX = 110;
+            }
+            if (passY < 0) {
+                passY = 0;
+            }
+            if (passY > height) {
+                passY = height;
+            }
+
+            scrimmageLine
+                .attr("x1", xScale(lineOfScrimmageYard))
+                .attr("x2", xScale(lineOfScrimmageYard));
+
+            scrimmageLabel
+                .attr("x", xScale(lineOfScrimmageYard));
+
+            if (goalToGoalChecked) {
+                firstDownLine.style("display", "none");
+                firstDownLabel.style("display", "none");
+            } else {
+                firstDownLine.style("display", null);
+                firstDownLabel.style("display", null);
+
+                firstDownLine
+                    .attr("x1", xScale(firstDownYard))
+                    .attr("x2", xScale(firstDownYard));
+
+                firstDownLabel
+                    .attr("x", xScale(firstDownYard));
+            }
+
+            passCircle
+                .attr("cx", xScale(passX))
+                .attr("cy", passY);
+
+            if (runDirectionValue === "left") {
+                runLaneHighlight
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", width)
+                    .attr("height", height / 3);
+
+                runLaneLabel
+                    .attr("x", width / 2)
+                    .attr("y", height / 6)
+                    .text("Left Run");
+            } else if (runDirectionValue === "middle") {
+                runLaneHighlight
+                    .attr("x", 0)
+                    .attr("y", height / 3)
+                    .attr("width", width)
+                    .attr("height", height / 3);
+
+                runLaneLabel
+                    .attr("x", width / 2)
+                    .attr("y", height / 2)
+                    .text("Middle Run");
+            } else {
+                runLaneHighlight
+                    .attr("x", 0)
+                    .attr("y", 2 * height / 3)
+                    .attr("width", width)
+                    .attr("height", height / 3);
+
+                runLaneLabel
+                    .attr("x", width / 2)
+                    .attr("y", (5 * height) / 6)
+                    .text("Right Run");
+            }
+
+            yardsToGo = firstDownYard - lineOfScrimmageYard;
+            yardsToTouchdown = 110 - lineOfScrimmageYard;
+            displayLOS = getDisplayYard(lineOfScrimmageYard);
+            displayFirstDown = getDisplayYard(firstDownYard);
+            gameClockInput = document.getElementById("gameClock");
+            gameClockValue = cleanGameClock(gameClockInput.value);
+            gameClockInput.value = gameClockValue;
+            quarterValue = document.getElementById("quarterNumber").value;
+            downValue = document.getElementById("downNumber").value;
+            playTypeValue = document.getElementById("playType").value;
+            formationValue = document.getElementById("formationType").value;
+            offenseTeamValue = document.getElementById("offenseTeam").value;
+            defenseTeamValue = document.getElementById("defenseTeam").value;
+
+            var userInputs = {
+                gameClock: gameClockValue,
+                quarter: quarterValue,
+                down: downValue,
+                playType: playTypeValue,
+                formation: formationValue,
+                offenseTeam: offenseTeamValue,
+                defenseTeam: defenseTeamValue,
+                lineOfScrimmage: lineOfScrimmageYard,
+                firstDown: firstDownYard,
+                yardsToGo: yardsToGo,
+                yardsToTouchdown: yardsToTouchdown
+            };
+
+            if (playTypeValue === "run") {
+                userInputs.runDirection = runDirectionValue;
+            } else {
+                userInputs.passTargetYard = Math.round(passX);
+                userInputs.passSide = getFieldSide(passY);
+                userInputs.passLength = Math.round(passX - lineOfScrimmageYard);
+            }
+
+            updateExtraControls();
+
+            infoText =
+                "Game Clock: " + gameClockValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Quarter: " + quarterValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Down: " + downValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Play Type: " + playTypeValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Formation: " + formationValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | LOS: " + displayLOS +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | First Down: " + displayFirstDown +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Yards to Go (1st Down): " + yardsToGo +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Yards to Go (Touchdown): " + yardsToTouchdown +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Offensive Team: " + offenseTeamValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>" +
+                " | Defensive Team: " + defenseTeamValue +
+                "<span class='help-icon'>?" +
+                    "<span class='tooltip-box'>[description]</span>" +
+                "</span>";
+
+            if (playTypeValue === "run") {
+                infoText = infoText +
+                    " | Run Direction: " + runDirectionValue +
+                    "<span class='help-icon'>?" +
+                        "<span class='tooltip-box'>[description]</span>" +
+                    "</span>";
+            } else {
+                passAttemptLength = Math.round(passX - lineOfScrimmageYard);
+                passFieldSide = getFieldSide(passY);
+                passDisplayYard = getDisplayYard(Math.round(passX));
+
+                infoText = infoText +
+                    " | Pass Attempt Length: " + passAttemptLength +
+                    "<span class='help-icon'>?" +
+                        "<span class='tooltip-box'>[description]</span>" +
+                    "</span>" +
+                    " | Pass Side: " + passFieldSide +
+                    "<span class='help-icon'>?" +
+                        "<span class='tooltip-box'>[description]</span>" +
+                    "</span>" +
+                    " | Pass Yard: " + passDisplayYard +
+                    "<span class='help-icon'>?" +
+                        "<span class='tooltip-box'>[description]</span>" +
+                    "</span>";
+            }
+
+            d3.select("#info").html(infoText);
+        }
+
+        function buildPlayData() {
+            var playTypeValue;
+            var goalToGoalChecked;
+            var runGapChecked;
+            var gameClockValue;
+            var playData;
+
+            playTypeValue = document.getElementById("playType").value;
+            goalToGoalChecked = document.getElementById("goalToGoal").checked;
+            runGapChecked = document.getElementById("runGap").checked;
+            gameClockValue = cleanGameClock(document.getElementById("gameClock").value);
+
+            playData = {
+                gameClock: gameClockValue,
+                quarter: document.getElementById("quarterNumber").value,
+                down: document.getElementById("downNumber").value,
+                playType: playTypeValue,
+                formation: document.getElementById("formationType").value,
+                offenseTeam: document.getElementById("offenseTeam").value,
+                defenseTeam: document.getElementById("defenseTeam").value,
+                goalToGoal: goalToGoalChecked,
+                lineOfScrimmageYard: lineOfScrimmageYard,
+                firstDownYard: goalToGoalChecked ? null : firstDownYard,
+                yardsToTouchdown: 110 - lineOfScrimmageYard
+            };
+
+            if (goalToGoalChecked) {
+                playData.yardsToGoFirstDown = null;
+            } else {
+                playData.yardsToGoFirstDown = firstDownYard - lineOfScrimmageYard;
+            }
+
+            if (playTypeValue === "run") {
+                playData.runDirection = runDirectionValue;
+                playData.runGap = runGapChecked;
+                playData.passX = null;
+                playData.passY = null;
+                playData.passAttemptLength = null;
+                playData.passSide = null;
+                playData.passDisplayYard = null;
+            } else {
+                playData.runDirection = null;
+                playData.runGap = null;
+                playData.passX = passX;
+                playData.passY = passY;
+                playData.passAttemptLength = Math.round(passX - lineOfScrimmageYard);
+                playData.passSide = getFieldSide(passY);
+                playData.passDisplayYard = getDisplayYard(Math.round(passX));
+            }
+
+    return playData;
+}
+
+        var scrimmageDrag = d3.drag()
+            .on("drag", function() {
+                var mouseX = d3.mouse(g.node())[0];
+                var newYard = xScale.invert(mouseX);
+
+                if (newYard < 10) {
+                    newYard = 10;
+                }
+                if (newYard > 110) {
+                    newYard = 110;
+                }
+
+                lineOfScrimmageYard = Math.round(newYard);
+                updateLines();
+            });
+
+        var firstDownDrag = d3.drag()
+            .on("drag", function() {
+                var mouseX = d3.mouse(g.node())[0];
+                var newYard = xScale.invert(mouseX);
+
+                if (newYard < 10) {
+                    newYard = 10;
+                }
+                if (newYard > 110) {
+                    newYard = 110;
+                }
+
+                firstDownYard = Math.round(newYard);
+                updateLines();
+            });
+
+        scrimmageLine.call(scrimmageDrag);
+        firstDownLine.call(firstDownDrag);
+
+        scrimmageLabel.call(scrimmageDrag);
+        firstDownLabel.call(firstDownDrag);
+
+        g.on("click", function() {
+            var playTypeValue;
+            var mousePosition;
+            var clickedX;
+            var clickedY;
+
+            playTypeValue = document.getElementById("playType").value;
+
+            mousePosition = d3.mouse(g.node());
+            clickedX = mousePosition[0];
+            clickedY = mousePosition[1];
+
+            if (clickedX < xScale(10)) {
+                clickedX = xScale(10);
+            }
+            if (clickedX > xScale(110)) {
+                clickedX = xScale(110);
+            }
+            if (clickedY < 0) {
+                clickedY = 0;
+            }
+            if (clickedY > height) {
+                clickedY = height;
+            }
+
+            if (playTypeValue === "pass") {
+                passX = xScale.invert(clickedX);
+                passY = clickedY;
+            } else if (playTypeValue === "run") {
+                runDirectionValue = getRunLane(clickedY);
+            }
+
+            updateLines();
+        });
+
+        d3.select("#gameClock").on("blur", function() { updateLines(); });
+        d3.select("#gameClock").on("change", function() { updateLines(); });
+        d3.select("#quarterNumber").on("change", function() { updateLines(); });
+        d3.select("#downNumber").on("change", function() { updateLines(); });
+        d3.select("#playType").on("change", function() { updateLines(); });
+        d3.select("#goalToGoal").on("change", function() { updateLines(); });
+        d3.select("#runGap").on("change", function() { updateLines(); });
+        d3.select("#formationType").on("change", function() { updateLines(); });
+        d3.select("#offenseTeam").on("change", function() { updateLines(); });
+        d3.select("#defenseTeam").on("change", function() { updateLines(); });
+        d3.select("#playButton").on("click", function() { currentPlayData = buildPlayData(); console.log("Captured play:", currentPlayData); });
+
+        updateLines();
+    </script>
+</body>
+</html>

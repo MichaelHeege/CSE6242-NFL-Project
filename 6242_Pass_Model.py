@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-import matplotlib.pyplot as plt
-import seaborn as sns
+#import matplotlib.pyplot as plt
+#import seaborn as sns
 
 #data import from nflfastr from 2010 to 2020 seasons
 pbp_cols = [

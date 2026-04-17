@@ -1,8 +1,6 @@
-
-
 # Application Flow
 
-**webpage → request sent to Flask (Python) → Python runs logic/model → Flask renders HTML → browser updates page**
+**webpage -> request sent to Flask (Python) -> Python runs logic/model -> Flask returns template/data -> browser updates page**
 
 ---
 
@@ -11,87 +9,140 @@
 - **backend/**  
   This is where the model, processing functions, helper functions, and any data transformation code should live. Flask should import from this folder rather than storing model logic directly in `routes.py`.
 
-- **data/**  
-  Contains the datasets used by the application. This may include raw input data, cleaned data, intermediate outputs, or files generated for the model. This folder should only store data files.
-
 - **flaskapp/**  
   Contains the Flask application code:
-  - `routes.py` handles requests from the webpage and connects user input to backend/model logic  
-  - `templates/` contains dynamic HTML files rendered using Flask/Jinja  
-  - `static/` contains CSS, JavaScript, and other static files used for frontend behavior  
+  - `routes.py` handles requests from the webpage and connects user input to backend/model logic
+  - `templates/` contains HTML files rendered by Flask/Jinja
+  - `static/` contains CSS, JavaScript, and other static files if the app needs them
 
 - **run.py**  
-  Used to start the Flask server locally
+  Used to start the Flask server locally.
 
 ---
 
 ## How It Works
 
-1. A user interacts with the webpage (e.g., selects items from a dropdown)
-2. The browser sends a request to the Flask application  
-3. Flask reads the user input and calls the appropriate model or processing functions  
-4. The model processes the data and generates results  
-5. Flask passes the results into an HTML template  
-6. The browser displays the updated page  
-
-
-<br> 
-
-<br/>
-
-# Running the Application
+1. A user opens `http://127.0.0.1:3001/`
+2. Flask handles `GET /` in `flaskapp/routes.py`
+3. Flask renders `flaskapp/templates/project_1APR2026.html`
+4. The user interacts with the page and clicks the button to run the model
+5. JavaScript sends a `POST` request to `/api/predict`
+6. Flask reads the posted JSON, calls the backend/model logic, and returns JSON
+7. JavaScript can use that JSON response to update the page
 
 ---
 
-### 🔹 Run Flask App (Dynamic HTML)
+# Running the Application
 
-#### Steps:
+### Run Flask App
 
-1. Open a terminal
+#### Steps
 
-2. Navigate to the directory containing `run.py`:
+1. Open a terminal.
 
-   ```bash
-   cd path/to/project
-   ```
-
-3. Start the Flask server:
+2. Navigate to the `Interface/` folder containing `run.py`:
 
    ```bash
-   py run.py
+   cd path/to/project/Interface
    ```
 
-   *(or `python run.py` depending on your setup)*
+3. If you are using Conda, activate the environment first.
 
-4. Open your browser and go to:
+4. Start the Flask server:
+
+   ```bash
+   python run.py
+   ```
+
+   On Windows, if Conda is active, prefer `python run.py` instead of `py run.py` because `py` may use a different interpreter.
+
+5. Open your browser and go to:
 
    ```text
    http://127.0.0.1:3001/
    ```
 
-5. This will load `index.html` from:
+6. The current app page rendered by Flask is:
 
+   ```text
+   flaskapp/templates/project_1APR2026.html
    ```
-   flaskapp/templates/
+
+7. If you want to edit the current UI, this is the HTML file to update.
+
+8. The model/data endpoint used by the page is:
+
+   ```text
+   /api/predict
    ```
 
----
+   That route is defined in `flaskapp/routes.py`.
 
-### 🔹 Run Static HTML (No Flask)
+### Use a Different HTML File
 
-Use this for standalone HTML files (no backend logic).
+1. Put the new HTML file inside:
 
-#### Steps:
+   ```text
+   Interface/flaskapp/templates/
+   ```
+
+   Example:
+
+   ```text
+   Interface/flaskapp/templates/my_new_page.html
+   ```
+
+2. Open `Interface/flaskapp/routes.py`.
+
+3. Find the `GET /` route:
+
+   ```python
+   @app.route("/", methods=["GET"])
+   def predictor():
+       return render_template("project_1APR2026.html")
+   ```
+
+4. Change the template filename to the new file:
+
+   ```python
+   @app.route("/", methods=["GET"])
+   def predictor():
+       return render_template("my_new_page.html")
+   ```
+
+5. Save the file and restart Flask:
+
+   ```bash
+   python run.py
+   ```
+
+6. Refresh `http://127.0.0.1:3001/` in the browser.
+
+### Notes on new HTML
+Make sure new HTML file has the same JavaScript request as "project_1APR2026.html
+
+```text
+/api/predict
+```
+
+That means the new HTML should still send a `POST` request with JavaScript `fetch()` to `/api/predict` when the user clicks the button.
+
+
+### Run Static HTML Only
+
+Use this for standalone HTML files that do not need Flask or Python backend logic.
+
+#### Steps
 
 1. Start a local server:
 
-   **Windows:**
+   **Windows**
 
    ```bash
    py -m http.server 8000
    ```
 
-   **Mac/Linux:**
+   **Mac/Linux**
 
    ```bash
    python3 -m http.server 8000
@@ -103,82 +154,61 @@ Use this for standalone HTML files (no backend logic).
    http://localhost:8000
    ```
 
-3. Navigate to the desired HTML file (e.g., `ProjectDemo.html`)
+3. Navigate to the desired HTML file such as `ProjectDemo.html`.
 
 ---
-<br> 
 
-<br/>
+# Notes
 
-#  Notes
-
-* Use Flask when the page requires **Python logic, data processing, or models**
-* Use `http.server` for **static HTML only**
-* If dependencies are missing, install them with:
+- Use Flask when the page requires **Python logic, data processing, or models**
+- Use `http.server` for **static HTML only**
+- If dependencies are missing, install them with:
 
   ```bash
-  py -m pip install -r requirements.txt
+  python -m pip install -r requirements.txt
   ```
-* Use  CTRL+C in terminal to end servers
 
-
+- Use `CTRL+C` in the terminal to stop the server
 
 # Flask Notes
-* FLASK uses Jinja as its templating engine. The HTML is considered a Jinja template (Since it has placeholders/directives/Jinja comments)
-* {{ }} is a Jinja placeholder for dynamic content (For example the model outputs)
-* The operation that converts a template into a complete HTML page is called rendering
 
-* "{% }" = Jinja directive
-* "{# }" = Jinja comments
+- Flask uses Jinja as its templating engine
+- `{{ }}` is a Jinja placeholder for dynamic content
+- `{% %}` is a Jinja directive
+- `{# #}` is a Jinja comment
+- Rendering is the process of turning a template into a complete HTML page
+
+# Flask Functions
+
+- `render_template()` loads an HTML template and returns the rendered page
+- In this app, `GET /` renders `project_1APR2026.html`
+- `POST /api/predict` receives input data and returns a JSON response
+
+# Route Example
+
+```python
+@app.route("/", methods=["GET"])
+def predictor():
+    return render_template("project_1APR2026.html")
 
 
-#Flask functions
-* To render a template can import a function render_template() 
-* This function takes a HTML template filename and a variable list of template arguments and returns the same template but with all the placeholder in it replaced with actual values 
-
-
-# HTML notes
-
-* HTML "form" is used to collect user input. It is a container for different types of input elements such as: text fields, checkboxes, radio buttons, submit buttons etc.
-
-```html
-<form>
-  <span>Show species class:</span>
-  <select name="class" onchange="this.form.submit()">
-    <option value="">All</option>
-    {% for o in option_list %}
-      <option value="{{ o }}" {% if filter_class == o %} selected {% endif %}>{{ o }}</option>
-    {% endfor %}
-  </select>
-</form>
+@app.route("/api/predict", methods=["POST"])
+def predict():
+    ...
 ```
-# Breakdown of code
 
-```html
-<select name="class">
-```
-- Gives the control the key "class"
+# HTML Notes
 
-```html
-<option>
-```
-- Provides a value (if absent, the option text is used)
-- The browser reads the selected option's value
+- An HTML `form` is a container used to collect user input
+- Common input elements include text fields, dropdowns, checkboxes, radio buttons, and submit buttons
+- In the current app, JavaScript `fetch()` is also used to send data to Flask without reloading the page
 
-```html
-onchange="this.form.submit()"
-```
-- Calls the browser to submit the form immediately when the user picks an option
+# Query String Example
 
-- The form has no `method`, so the browser uses GET (method just tells how to send the form data )
-- The browser encodes all named controls as a query string: ?
-- With no `action`, the browser submits to the current page URL. (action just tells which URL to send the form to)
+If a page uses `GET`, browser controls can appear in the URL as query parameters.
 
 Example:
+
+```text
+/?play_type=run
 ```
-/index?class=Mammal
-```
-
-
-
-

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Football Field</title>
-    <script src="lib/d3.v5.min.js"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -133,14 +133,13 @@
     <h2>Football Field with User Input</h2>
 
     <div id="controls">
-        <form method="get" action="/index">
         <label for="gameClock">
             Game Clock
             <span class="help-icon">?
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <input type="text" id="gameClock" name="game_clock" value="15:00" maxlength="5" onblur="this.form.submit()">
+        <input type="text" id="gameClock" name="game_clock" value="15:00" maxlength="5">
 
         <label for="quarterNumber">
             Quarter
@@ -148,7 +147,7 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="quarterNumber" name="quarter" onchange="this.form.submit()">
+        <select id="quarterNumber" name="quarter">
             <option value="1st">1st</option>
             <option value="2nd">2nd</option>
             <option value="3rd">3rd</option>
@@ -161,7 +160,7 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="downNumber" name="down" onchange="this.form.submit()">
+        <select id="downNumber" name="down">
             <option value="1">1st</option>
             <option value="2">2nd</option>
             <option value="3">3rd</option>
@@ -174,20 +173,25 @@
                 <span class="tooltip-box">[description]</span>
             </span>
         </label>
-        <select id="playType" name="play_type" onchange="this.form.submit()">
+        <select id="playType" name="play_type">
             <option value="run">Run</option>
             <option value="pass">Pass</option>
         </select>
         <button id="runModel" type="button">Run Model</button>
         <span id="runStatus"></span>
-        </form>
     </div>
 
     <div id="chart-area"></div>
     <div id="info" class="info-text"></div>
 
     <script>
+        // Everything below runs in the browser. Most of it controls the field UI.
+        // The main Flask integration points are:
+        // 1. reading/writing URL query params
+        // 2. building the payload for the backend
+        // 3. POSTing that payload to /api/predict
         var margin = {top: 20, right: 20, bottom: 20, left: 20};
+        var initialParams = new URLSearchParams(window.location.search);
 
         var outerWidth = 1200;
         var outerHeight = 500;
@@ -361,6 +365,39 @@
             return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
         }
 
+        function applyInitialSelections() {
+            // Read existing query-string values from the URL and use them to
+            // prefill the controls when the page first loads.
+            var gameClock = initialParams.get("game_clock");
+            var quarter = initialParams.get("quarter");
+            var down = initialParams.get("down");
+            var playType = initialParams.get("play_type");
+
+            if (gameClock) {
+                document.getElementById("gameClock").value = gameClock;
+            }
+            if (quarter) {
+                document.getElementById("quarterNumber").value = quarter;
+            }
+            if (down) {
+                document.getElementById("downNumber").value = down;
+            }
+            if (playType === "run" || playType === "pass") {
+                document.getElementById("playType").value = playType;
+            }
+        }
+
+        function syncUrl() {
+            // Keep the URL in sync with the current UI state.
+            // This does not call Flask by itself; it only updates the browser URL.
+            var params = new URLSearchParams(window.location.search);
+            params.set("game_clock", document.getElementById("gameClock").value);
+            params.set("quarter", document.getElementById("quarterNumber").value);
+            params.set("down", document.getElementById("downNumber").value);
+            params.set("play_type", document.getElementById("playType").value);
+            window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
+        }
+
         function getDisplayYard(rawYard) {
             if (rawYard <= 60) {
                 return rawYard - 10;
@@ -424,6 +461,7 @@
             downValue = document.getElementById("downNumber").value;
 
             playTypeValue = document.getElementById("playType").value;
+            var playTypeLabel = playTypeValue.charAt(0).toUpperCase() + playTypeValue.slice(1);
 
             d3.select("#info")
                 .html(
@@ -439,7 +477,7 @@
                     "<span class='help-icon'>?" +
                         "<span class='tooltip-box'>[description]</span>" +
                     "</span>" +
-                    " | Play Type: " + playTypeValue +
+                    " | Play Type: " + playTypeLabel +
                     "<span class='help-icon'>?" +
                         "<span class='tooltip-box'>[description]</span>" +
                     "</span>" +
@@ -460,6 +498,8 @@
                         "<span class='tooltip-box'>[description]</span>" +
                     "</span>"
                 );
+
+            syncUrl();
         }
 
         var scrimmageDrag = d3.drag()
@@ -506,23 +546,44 @@
         d3.select("#downNumber").on("change", function() {updateLines();});
         d3.select("#playType").on("change", function() {updateLines();});
 
+        applyInitialSelections();
         updateLines();
 
-        // Collect inputs and POST JSON to /api/predict when Run Model clicked
+        // This function maps browser UI values into the exact JSON keys
+        // Flask expects in backend/play_handler.py.
         function collectPayload() {
+            var goalToGoChecked = (110 - lineOfScrimmageYard) <= 10 ? 1 : 0;
+            var formationValue = "shotgun";
+            var playTypeValue = document.getElementById('playType').value;
+
             return {
-                play_type: document.getElementById('playType').value,
+                // play_type is used by Flask routes.py to choose the correct model.
+                play_type: playTypeValue,
                 game_clock: document.getElementById('gameClock').value,
                 quarter: document.getElementById('quarterNumber').value,
                 down: document.getElementById('downNumber').value,
-                // compute LOS and ydstogo from current lines
+                // LOS and ydstogo are derived from the draggable field lines.
                 LOS: getDisplayYard(lineOfScrimmageYard),
+                goal_to_go: goalToGoChecked,
                 ydstogo: Math.max(0, Math.round(firstDownYard - lineOfScrimmageYard)),
+                // These are backend model inputs. Right now some are fixed defaults.
+                qb_dropback: 0,
+                shotgun: formationValue === 'shotgun' ? 1 : 0,
+                formation: formationValue,
+                run_location: playTypeValue === 'run' ? 'middle' : null,
+                run_gap: playTypeValue === 'run' ? 'guard' : null,
+                // Timestamp is optional metadata for debugging requests.
                 _ts: Date.now()
             };
         }
 
         document.getElementById('runModel').addEventListener('click', async function() {
+            // This click handler is the main "talk to Flask" section.
+            // When the button is clicked:
+            // 1. build the payload from the UI
+            // 2. send it to Flask with fetch()
+            // 3. read the JSON response from Flask
+            // 4. use that response in JavaScript
             const btn = this;
             const status = document.getElementById('runStatus');
             const payload = collectPayload();
@@ -531,13 +592,22 @@
             status.textContent = 'Running...';
 
             try {
+                // POST the UI data to the Flask route defined in routes.py:
+                // @app.route('/api/predict', methods=['POST'])
                 const resp = await fetch('/api/predict', {
                     method: 'POST',
+                    // Tell Flask we are sending JSON in the request body.
                     headers: { 'Content-Type': 'application/json' },
+                    // Convert the JavaScript object into a JSON string for Flask.
                     body: JSON.stringify(payload)
                 });
                 if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+
+                // Convert Flask's JSON response back into a JavaScript object.
                 const j = await resp.json();
+
+                // This is where a teammate would plug in visualization logic
+                // if they want to draw model output on the page.
                 console.log('model result', j);
                 status.textContent = 'Done';
             } catch (err) {

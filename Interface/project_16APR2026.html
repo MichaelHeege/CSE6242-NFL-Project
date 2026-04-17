@@ -254,6 +254,8 @@
         <select id="formationType">
             <option value="shotgun">Shotgun</option>
             <option value="qbdropback">QB Dropback</option>
+            <option value="both">Both</option>
+            <option value="neither">Neither</option>
         </select>
 
         <span id="passControls" class="hidden-control">
@@ -552,7 +554,10 @@
         var runLaneLabel = g.append("text")
             .attr("class", "run-lane-label")
             .style("display", "none")
-    .text("Run Lane");
+            .text("Run Lane");
+
+        var overlayGroup = g.append("g")
+            .attr("id", "probability-overlay");
 
         function cleanGameClock(clockValue) {
             var parts;
@@ -643,6 +648,142 @@
 
                 runLaneHighlight.style("display", "none");
                 runLaneLabel.style("display", "none");
+            }
+        }
+
+        function getRowY(rowName) {
+            if (rowName === "left") {
+                return 0;
+            } else if (rowName === "middle") {
+                return height / 3;
+            } else {
+                return (2 * height) / 3;
+            }
+        }
+
+        function getProbabilityColor(prob) {
+            var colorScale = d3.scaleLinear()
+                .domain([0, 0.30])
+                .range(["#ffda00", "#ff8c00"]);
+            return colorScale(prob);
+        }
+
+        function drawRunDistribution(result) {
+
+            var rowY;
+            var rowHeight;
+
+            overlayGroup.selectAll("*").remove();
+
+            rowY = getRowY(result.selected_row);
+            rowHeight = height / 3;
+
+            overlayGroup.selectAll(".run-prob-cell")
+                .data(result.cells)
+                .enter()
+                .append("rect")
+                .attr("class", "run-prob-cell")
+                .attr("x", function(d) { return xScale(d.yardline_start + 10); })
+                .attr("y", rowY)
+                .attr("width", function(d) {
+                    return xScale(d.yardline_end + 10) - xScale(d.yardline_start + 10);
+                })
+                .attr("height", rowHeight)
+                .attr("fill", function(d) { return getProbabilityColor(d.probability); })
+                .attr("stroke", "black")
+                .attr("stroke-width", 1);
+
+            overlayGroup.selectAll(".run-prob-label")
+                .data(result.cells)
+                .enter()
+                .append("text")
+                .attr("class", "run-prob-label")
+                .attr("x", function(d) {
+                    return (xScale(d.yardline_start + 10) + xScale(d.yardline_end + 10)) / 2;
+                })
+                .attr("y", rowY + rowHeight / 2)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-size", "14px")
+                .attr("font-weight", "bold")
+                .attr("fill", "black")
+                .text(function(d) {
+                    return Math.round(d.probability * 100) + "%";
+                });
+        }
+
+        function drawPassDistribution(result) {
+            var rowY;
+            var rowHeight;
+            var incBoxWidth;
+            var incBoxX;
+
+            overlayGroup.selectAll("*").remove();
+
+            rowY = getRowY(result.selected_row);
+            rowHeight = height / 3;
+
+            overlayGroup.selectAll(".pass-prob-cell")
+                .data(result.cells.filter(function(d) { return d.special !== "INC"; }))
+                .enter()
+                .append("rect")
+                .attr("class", "pass-prob-cell")
+                .attr("x", function(d) { return xScale(d.yardline_start + 10); })
+                .attr("y", rowY)
+                .attr("width", function(d) {
+                    return xScale(d.yardline_end + 10) - xScale(d.yardline_start + 10);
+                })
+                .attr("height", rowHeight)
+                .attr("fill", function(d) { return getProbabilityColor(d.probability); })
+                .attr("stroke", "black")
+                .attr("stroke-width", 1);
+
+            overlayGroup.selectAll(".pass-prob-label")
+                .data(result.cells.filter(function(d) { return d.special !== "INC"; }))
+                .enter()
+                .append("text")
+                .attr("class", "pass-prob-label")
+                .attr("x", function(d) {
+                    return (xScale(d.yardline_start + 10) + xScale(d.yardline_end + 10)) / 2;
+                })
+                .attr("y", rowY + rowHeight / 2)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .attr("fill", "black")
+                .text(function(d) {
+                    if (d.probability >= 0.03) {
+                        return Math.round(d.probability * 100) + "%";
+                    } else {
+                        return "";
+                    }
+                });
+
+            if (result.incompletionProbability !== null && result.incompletionProbability !== undefined) {
+                incBoxWidth = xScale(result.los + 2.5) - xScale(result.los - 2.5);
+                incBoxX = xScale(result.los + 10) - (incBoxWidth / 2);
+
+                overlayGroup.append("rect")
+                    .attr("class", "pass-inc-box")
+                    .attr("x", incBoxX)
+                    .attr("y", rowY + rowHeight * 0.35)
+                    .attr("width", incBoxWidth)
+                    .attr("height", rowHeight * 0.3)
+                    .attr("fill", "#cccccc")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 1);
+
+                overlayGroup.append("text")
+                    .attr("class", "pass-inc-label")
+                    .attr("x", incBoxX + (incBoxWidth / 2))
+                    .attr("y", rowY + rowHeight * 0.50)
+                    .attr("text-anchor", "middle")
+                    .attr("dominant-baseline", "middle")
+                    .attr("font-size", "11px")
+                    .attr("font-weight", "bold")
+                    .attr("fill", "black")
+                    .text("INC " + Math.round(result.incompletionProbability * 100) + "%");
             }
         }
 
@@ -902,10 +1043,10 @@
             gameClockValue = cleanGameClock(document.getElementById("gameClock").value);
 
             playData = {
+                playType: playTypeValue,
                 gameClock: gameClockValue,
                 quarter: document.getElementById("quarterNumber").value,
                 down: document.getElementById("downNumber").value,
-                playType: playTypeValue,
                 formation: document.getElementById("formationType").value,
                 offenseTeam: document.getElementById("offenseTeam").value,
                 defenseTeam: document.getElementById("defenseTeam").value,
@@ -1015,19 +1156,173 @@
             updateLines();
         });
 
+        d3.select("#playType").on("change", function() { updateLines(); });
         d3.select("#gameClock").on("blur", function() { updateLines(); });
         d3.select("#gameClock").on("change", function() { updateLines(); });
         d3.select("#quarterNumber").on("change", function() { updateLines(); });
         d3.select("#downNumber").on("change", function() { updateLines(); });
-        d3.select("#playType").on("change", function() { updateLines(); });
         d3.select("#goalToGoal").on("change", function() { updateLines(); });
         d3.select("#seasonYear").on("change", function() { updateLines(); });
         d3.select("#runGap").on("change", function() { updateLines(); });
         d3.select("#formationType").on("change", function() { updateLines(); });
         d3.select("#offenseTeam").on("change", function() { updateLines(); });
         d3.select("#defenseTeam").on("change", function() { updateLines(); });
-        d3.select("#playButton").on("click", function() { currentPlayData = buildPlayData(); console.log("Captured play:", currentPlayData); });
+//    real code    //
+/*        d3.select("#playButton").on("click", function() { currentPlayData = buildPlayData(); console.log("Captured play:", currentPlayData); });*/
+
+//    Mock Run Data    //
+/*        d3.select("#playButton").on("click", function() {
+
+            currentPlayData = buildPlayData();
+            console.log("Captured play:", currentPlayData);
+
+            if (currentPlayData.playType === "run") {
+                var displayLOS = getDisplayYard(lineOfScrimmageYard);
+                var cells = [];
+                var startYard;
+                var endYard;
+                var i;
+                var mockProbabilities;
+
+                mockProbabilities = [
+                    0.08, 0.12, 0.18, 0.22, 0.16,
+                    0.10, 0.06, 0.04, 0.02, 0.01,
+                    0.005, 0.003, 0.002, 0.001, 0.001
+                ];
+
+                for (i = 0; i < mockProbabilities.length; i += 1) {
+                    startYard = displayLOS + (i * 5);
+                    endYard = startYard + 5;
+
+                    if (startYard >= 100) {
+                        break;
+                    }
+
+                    if (endYard > 100) {
+                        endYard = 100;
+                    }
+
+                    cells.push({
+                        row: currentPlayData.runDirection,
+                        yardline_start: startYard,
+                        yardline_end: endYard,
+                        label: startYard + "-" + endYard,
+                        probability: mockProbabilities[i]
+                    });
+                }
+
+                var mockRunResult = {
+                    mode: "run",
+                    selected_row: currentPlayData.runDirection,
+                    cells: cells
+                };
+
+                drawRunDistribution(mockRunResult);
+            }
+        });
+*/
+
+//    Mock Pass Data    //
+/*        d3.select("#playButton").on("click", function() {
+
+            currentPlayData = buildPlayData();
+            console.log("Captured play:", currentPlayData);
+
+            if (currentPlayData.playType === "run") {
+
+                var displayLOS = getDisplayYard(lineOfScrimmageYard);
+                var cells = [];
+                var startYard;
+                var endYard;
+                var i;
+                var mockProbabilities;
+
+                mockProbabilities = [
+                    0.08, 0.12, 0.18, 0.22, 0.16,
+                    0.10, 0.06, 0.04, 0.02, 0.01,
+                    0.005, 0.003, 0.002, 0.001, 0.001
+                ];
+
+                for (i = 0; i < mockProbabilities.length; i += 1) {
+                    startYard = displayLOS + (i * 5);
+                    endYard = startYard + 5;
+
+                    if (startYard >= 100) {
+                        break;
+                    }
+
+                    if (endYard > 100) {
+                        endYard = 100;
+                    }
+
+                    cells.push({
+                        row: currentPlayData.runDirection,
+                        yardline_start: startYard,
+                        yardline_end: endYard,
+                        label: startYard + "-" + endYard,
+                        probability: mockProbabilities[i]
+                    });
+                }
+
+                var mockRunResult = {
+                    mode: "run",
+                    selected_row: currentPlayData.runDirection,
+                    cells: cells
+                };
+
+                drawRunDistribution(mockRunResult);
+
+            } else if (currentPlayData.playType === "pass") {
+
+                var catchYard = currentPlayData.passDisplayYard;
+                var passRow = currentPlayData.passLocation;
+                var passCells = [];
+                var passStartYard;
+                var passEndYard;
+                var j;
+                var mockYacProbabilities;
+
+                mockYacProbabilities = [
+                    0.22, 0.18, 0.14, 0.10, 0.08,
+                    0.06, 0.04, 0.03, 0.02, 0.01
+                ];
+
+                for (j = 0; j < mockYacProbabilities.length; j += 1) {
+                    passStartYard = catchYard + (j * 5);
+                    passEndYard = passStartYard + 5;
+
+                    if (passStartYard >= 100) {
+                        break;
+                    }
+
+                    if (passEndYard > 100) {
+                        passEndYard = 100;
+                    }
+
+                    passCells.push({
+                        row: passRow,
+                        yardline_start: passStartYard,
+                        yardline_end: passEndYard,
+                        label: passStartYard + "-" + passEndYard,
+                        probability: mockYacProbabilities[j]
+                    });
+                }
+
+                var mockPassResult = {
+                    mode: "pass",
+                    selected_row: passRow,
+                    los: getDisplayYard(lineOfScrimmageYard),
+                    catchYard: catchYard,
+                    incompletionProbability: 0.37,
+                    cells: passCells
+                };
+
+                drawPassDistribution(mockPassResult);
+            }
+        });
+
         d3.select("#resetButton").on("click", function() {
+            overlayGroup.selectAll("*").remove();
             lineOfScrimmageYard = 35;
             firstDownYard = 45;
             passX = 45;
@@ -1044,7 +1339,7 @@
             document.getElementById("defenseTeam").value = "ARI";
             document.getElementById("seasonYear").value = "2010";
             updateLines();
-        });
+        });*/
 
         updateLines();
     </script>

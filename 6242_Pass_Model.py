@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #import seaborn as sns
 
 #data import from nflfastr from 2010 to 2020 seasons
@@ -232,6 +232,20 @@ def plot_calibration(y_test, probs):
     plt.ylabel("Observed")
     plt.show()
 
+def build_rank_lookups(df):
+    off_rank_lookup = {}
+    def_rank_lookup = {}
+
+    off_df = df[["season", "posteam", "off_rank"]].drop_duplicates()
+    def_df = df[["season", "defteam", "def_rank"]].drop_duplicates()
+
+    for _, row in off_df.iterrows():
+        off_rank_lookup[(int(row["season"]), row["posteam"])] = int(row["off_rank"])
+
+    for _, row in def_df.iterrows():
+        def_rank_lookup[(int(row["season"]), row["defteam"])] = int(row["def_rank"])
+
+    return off_rank_lookup, def_rank_lookup
 
 # This function takes in the model and the relevant features for a given pass attempt, 
 # and outputs the predicted probability of completion. This is the main function 
@@ -275,9 +289,53 @@ def predict_pass_probability(air_yards, yardline_100, ydstogo, down, qtr,
     return prob
 
 
+
+#helper function for flask integration. Call this func to get flask-friendly outputs.
+def execute_pass_model(play):
+    season = int(play.season)
+    offense_team = play.offense_team
+    defense_team = play.defense_team
+
+    down = int(play.down)
+    qtr = int(play.quarter)
+    shotgun = int(play.shotgun)
+
+    los = int(play.LOS)
+    yardline_100 = 110 - los
+
+    ydstogo = int(play.ydstogo)
+    air_yards = int(play.pass_attempt_length)
+    pass_location = play.pass_location
+
+    off_rank = off_rank_lookup[(season, offense_team)]
+    def_rank = def_rank_lookup[(season, defense_team)]
+
+    prob = predict_pass_probability(
+        air_yards=air_yards,
+        yardline_100=yardline_100,
+        ydstogo=ydstogo,
+        down=down,
+        qtr=qtr,
+        shotgun=shotgun,
+        off_rank=off_rank,
+        def_rank=def_rank,
+        pass_location=pass_location
+    )
+
+    return {
+        "play_type": "pass",
+        "probability": float(prob),
+        "probability_percent": round(float(prob) * 100, 2)
+    }
+
+
+#training funcs
 df = load_data()
 df = clean_data(df)
 df = add_team_ranks(df)
+
+#executing model funcs - looking up team ranks given season and team as flask inputs
+off_rank_lookup, def_rank_lookup = build_rank_lookups(df)
 
 model_df, X, y, feature_cols = build_features(df)
 
@@ -285,45 +343,7 @@ model_df, X, y, feature_cols = build_features(df)
 model, X_train, X_test, y_train, y_test, probs = train_model(X, y)
 
 #this is a sample, fill in the variables as needed to produce an output probability for a given pass scenario. The variables are viewable in the function definition for predict_pass_probability.
-input_output = predict_pass_probability(3, 60, 2, 1, 2, 0, 8, 20, "middle")
-
-#testing and sample input/outputs
-
-# --- High probability cases ---
-# short_slant_first_down = predict_pass_probability(3, 60, 2, 1, 2, 0, 8, 20, "middle")
-# print(f"short_slant_first_down: {short_slant_first_down:.2%}")
-
-# short_out_second_down = predict_pass_probability(5, 50, 4, 2, 2, 1, 10, 18, "right")
-# print(f"short_out_second_down: {short_out_second_down:.2%}")
-
-# quick_middle_third_and_short = predict_pass_probability(4, 35, 3, 2, 3, 1, 12, 15, "middle")
-# print(f"quick_middle_third_and_short: {quick_middle_third_and_short:.2%}")
-
-
-# # --- Average probability cases ---
-# intermediate_second_and_long = predict_pass_probability(10, 45, 8, 2, 2, 1, 14, 14, "middle")
-# print(f"intermediate_second_and_long: {intermediate_second_and_long:.2%}")
-
-# third_and_medium_normal_pass = predict_pass_probability(12, 40, 10, 3, 2, 1, 12, 12, "right")
-# print(f"third_and_medium_normal_pass: {third_and_medium_normal_pass:.2%}")
-
-# mid_range_vs_strong_defense = predict_pass_probability(8, 30, 6, 2, 3, 0, 16, 10, "middle")
-# print(f"mid_range_vs_strong_defense: {mid_range_vs_strong_defense:.2%}")
-
-# early_down_balanced_teams = predict_pass_probability(7, 25, 5, 1, 1, 0, 18, 18, "right")
-# print(f"early_down_balanced_teams: {early_down_balanced_teams:.2%}")
-
-
-# # --- Low probability cases ---
-# deep_third_and_long = predict_pass_probability(18, 50, 12, 3, 3, 1, 15, 10, "right")
-# print(f"deep_third_and_long: {deep_third_and_long:.2%}")
-
-# fourth_down_deep_attempt = predict_pass_probability(20, 35, 15, 4, 4, 1, 18, 8, "right")
-# print(f"fourth_down_deep_attempt: {fourth_down_deep_attempt:.2%}")
-
-# red_zone_tight_window_strong_defense = predict_pass_probability(15, 20, 10, 3, 4, 1, 20, 5, "right")
-# print(f"red_zone_tight_window_strong_defense: {red_zone_tight_window_strong_defense:.2%}")
-
+#input_output = predict_pass_probability(3, 60, 2, 1, 2, 0, 8, 20, "middle")
 
 
 

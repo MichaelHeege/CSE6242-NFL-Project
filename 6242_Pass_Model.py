@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
+import joblib
 #import seaborn as sns
 
 #data import from nflfastr from 2010 to 2020 seasons
@@ -42,6 +43,14 @@ def load_data(data_path="data", start_year=2010, end_year=2021):
         dfs.append(df_year)
 
     return pd.concat(dfs, ignore_index=True)
+
+
+#pkl file paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_FILE = os.path.join(BASE_DIR, "pass_model.pkl")
+FEATURES_FILE = os.path.join(BASE_DIR, "feature_cols.pkl")
+OFF_RANK_FILE = os.path.join(BASE_DIR, "off_rank_lookup.pkl")
+DEF_RANK_FILE = os.path.join(BASE_DIR, "def_rank_lookup.pkl")
 
 def clean_data(df):
     df = df.copy()
@@ -184,19 +193,7 @@ def build_features(df):
 
     return model_df, X, y, feature_cols
 
-#VIF check
-# from statsmodels.stats.outliers_influence import variance_inflation_factor
-# import statsmodels.api as sm
-# def print_vif(X):
-#     X_vif = sm.add_constant(X)
 
-#     vif_df = pd.DataFrame({
-#         "variable": X_vif.columns,
-#         "VIF": [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
-#     })
-
-#     print("\nVIF")
-#     print(vif_df.sort_values("VIF", ascending=False))
 
 #### logistic regression ####
 from sklearn.model_selection import train_test_split
@@ -221,16 +218,7 @@ def train_model(X, y):
 
     return model, X_train, X_test, y_train, y_test, probs
 
-def plot_calibration(y_test, probs):
-    frac_pos, mean_pred = calibration_curve(y_test, probs, n_bins=10)
 
-    plt.figure(figsize=(6, 4))
-    plt.plot(mean_pred, frac_pos, marker="o")
-    plt.plot([0, 1], [0, 1], "--")
-    plt.title("Calibration")
-    plt.xlabel("Predicted")
-    plt.ylabel("Observed")
-    plt.show()
 
 def build_rank_lookups(df):
     off_rank_lookup = {}
@@ -246,6 +234,21 @@ def build_rank_lookups(df):
         def_rank_lookup[(int(row["season"]), row["defteam"])] = int(row["def_rank"])
 
     return off_rank_lookup, def_rank_lookup
+
+#joblib funcs
+def save_artifacts(model, feature_cols, off_rank_lookup, def_rank_lookup):
+    joblib.dump(model, MODEL_FILE)
+    joblib.dump(feature_cols, FEATURES_FILE)
+    joblib.dump(off_rank_lookup, OFF_RANK_FILE)
+    joblib.dump(def_rank_lookup, DEF_RANK_FILE)
+
+
+def load_artifacts():
+    model = joblib.load(MODEL_FILE)
+    feature_cols = joblib.load(FEATURES_FILE)
+    off_rank_lookup = joblib.load(OFF_RANK_FILE)
+    def_rank_lookup = joblib.load(DEF_RANK_FILE)
+    return model, feature_cols, off_rank_lookup, def_rank_lookup
 
 # This function takes in the model and the relevant features for a given pass attempt, 
 # and outputs the predicted probability of completion. This is the main function 
@@ -290,6 +293,7 @@ def predict_pass_probability(air_yards, yardline_100, ydstogo, down, qtr,
 
 
 
+
 #helper function for flask integration. Call this func to get flask-friendly outputs.
 def execute_pass_model(play):
     season = int(play.season)
@@ -330,79 +334,47 @@ def execute_pass_model(play):
 
 
 #training funcs
-df = load_data()
-df = clean_data(df)
-df = add_team_ranks(df)
+#df = load_data()
+#df = clean_data(df)
+#df = add_team_ranks(df)
 
 #executing model funcs - looking up team ranks given season and team as flask inputs
-off_rank_lookup, def_rank_lookup = build_rank_lookups(df)
+#off_rank_lookup, def_rank_lookup = build_rank_lookups(df)
 
-model_df, X, y, feature_cols = build_features(df)
+#model_df, X, y, feature_cols = build_features(df)
 
 
-model, X_train, X_test, y_train, y_test, probs = train_model(X, y)
+#model, X_train, X_test, y_train, y_test, probs = train_model(X, y)
+
+#save_artifacts(model, feature_cols, off_rank_lookup, def_rank_lookup)
+
+model, feature_cols, off_rank_lookup, def_rank_lookup = load_artifacts()
 
 #this is a sample, fill in the variables as needed to produce an output probability for a given pass scenario. The variables are viewable in the function definition for predict_pass_probability.
 #input_output = predict_pass_probability(3, 60, 2, 1, 2, 0, 8, 20, "middle")
+#print("Sample output:", input_output)
 
+#README#
+#Run line 351 first to establish the model, cols, and rank lookups. This reads the .pkl files
+#OPTIONAL TEST: uncomment and run line 354 and 355 to test the model w/ dummy inputs to validate functionality.
+#execute_pass_model(dummy_play) where dummy_play is the flask input class object with the relevant play variables.
+#output is a dict @ line 329-333
 
+##input var for reference
+# class DummyPlayClass:
+#     def __init__(self):
+#         self.season = 2018
+#         self.offense_team = "KC"
+#         self.defense_team = "BUF"
+#         self.down = 3
+#         self.quarter = 2
+#         self.shotgun = 1
+#         self.LOS = 35
+#         self.ydstogo = 8
+#         self.pass_attempt_length = 12
+#         self.pass_location = "middle"
 
-#visuals and testing stuff
-#print_vif(X)
+# dummy_play = DummyPlayClass()
 
-#plot_calibration(y_test, probs)
-
-# def logit(p):
-#     p = np.clip(p, 1e-6, 1 - 1e-6)
-#     return np.log(p / (1 - p))
-
-
-# vars_to_check = ["air_yards", "yardline_100", "ydstogo"]
-
-# for var in vars_to_check:
-#     temp = model_df[[var, "complete_pass"]].copy()
-#     temp["bin"] = pd.qcut(temp[var], q=10, duplicates="drop")
-#     grp = temp.groupby("bin", observed=False)["complete_pass"].mean()
-
-#     plt.figure(figsize=(6, 4))
-#     plt.plot(range(len(grp)), logit(grp.values), marker="o")
-#     plt.title(f"Logit Linearity: {var}")
-#     plt.xlabel("Bin")
-#     plt.ylabel("Logit(Completion Rate)")
-#     plt.show()
-
-# residuals = y_test - probs
-
-# plt.figure(figsize=(6, 4))
-# plt.hist(residuals, bins=50)
-# plt.title("Residuals")
-# plt.xlabel("Residual")
-# plt.ylabel("Count")
-# plt.show()
-
-
-# import statsmodels.api as sm
-
-# X_sm = sm.add_constant(X)
-# result = sm.Logit(y, X_sm).fit()
-
-# print(result.summary())
-
-
-
-
-#to-do's from 4/1/2026 meeting
-#model tuning:
-### add squared air yards and yardline_100 as non-linear interaction terms.
-### add left and right pass location interaction terms.
-### 
-
-#variable selection/trimming
-#data cleaning 2nd pass:
-### remove 5th & 6th quarter
-### try model tuning with one-hot encoding of down, pass location, and quarter
-### remove incorrect null rows
-### remove non-pass or incomplete plays (check penalties)
-#output format: left, middle, right probability values for a given air_yard input
-
-#model assumption and calibration testings
+# result = execute_pass_model(dummy_play)
+# print("Helper output:", result)

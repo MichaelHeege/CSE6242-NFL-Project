@@ -205,19 +205,20 @@ def run_model(play):
 
   return output.to_dict('list'), first_down
 
-class Play:
-    def __init__(self, LOS, goal_to_go, down, ydstogo, posteam, defteam, season, pass_location, shotgun, air_yards, pass_completion):
-        self.LOS = LOS
-        self.goal_to_go = goal_to_go
-        self.down = down
-        self.ydstogo = ydstogo
-        self.posteam = posteam
-        self.defteam = defteam
-        self.season = season
-        self.pass_location = pass_location
-        self.shotgun = shotgun
-        self.air_yards = air_yards
-        self.pass_completion = pass_completion
+# ----------- TESTING BELOW THIS LINE ------------------
+# class Play:
+#     def __init__(self, LOS, goal_to_go, down, ydstogo, posteam, defteam, season, pass_location, shotgun, air_yards, pass_completion):
+#         self.LOS = LOS
+#         self.goal_to_go = goal_to_go
+#         self.down = down
+#         self.ydstogo = ydstogo
+#         self.posteam = posteam
+#         self.defteam = defteam
+#         self.season = season
+#         self.pass_location = pass_location
+#         self.shotgun = shotgun
+#         self.air_yards = air_yards
+#         self.pass_completion = pass_completion
 
 # play1 = Play(48,0,'2',5,'SEA','DEN',2010,'right',0,5,0.50)
 # results = run_model(play1)

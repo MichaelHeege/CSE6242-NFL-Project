@@ -142,13 +142,9 @@ def run_model(play):
     assert 0 <= play.ydstogo <= 100, f"play.ydstogo must be between 0 and 100, got {play.ydstogo}"
     ydstogo = play.ydstogo
     
-    assert hasattr(play, 'qb_dropback'), "play.qb_dropback does not exist"
-    assert (play.qb_dropback in [0,1]), f"play.qb_dropback must be 0 or 1, got {play.qb_dropback}"
-    qb_dropback = play.qb_dropback
-    
-    assert hasattr(play, 'shotgun'), "play.shotgun does not exist"
-    assert (play.shotgun in [0,1]), f"play.shotgun must be 0 or 1, got {play.shotgun}"
-    shotgun = play.shotgun
+    assert hasattr(play, 'formation'), "play.formation does not exist"
+    qb_dropback = int(((play.formation.lower()=='both') or (play.formation.lower()=='qbdropback')))
+    shotgun = int(((play.formation.lower()=='both') or (play.formation.lower()=='shotgun')))
     
     assert hasattr(play, 'run_location'), "play.run_location does not exist"
     assert (play.run_location in ['left','middle','right']), f"play.run_location must be left, middle, or right, got {play.run_location}"

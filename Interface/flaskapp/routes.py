@@ -24,9 +24,6 @@ def predict():
     if play_type is None:
         return jsonify({"error": "Missing play_type. Please select either 'run' or 'pass'."}), 400
 
-    if play_type == "pass":
-        return jsonify({"error": "Pass predictions are not implemented yet."}), 501
-
     #Selects model based on play type
     selected_model = select_model(play_type)
 

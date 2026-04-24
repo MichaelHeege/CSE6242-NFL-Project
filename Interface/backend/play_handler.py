@@ -20,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # the backend package (from backend.play_handler import ...).
 from .Run_Model import run_model                         #Michaels model
 from .YAC_Model import run_model as run_yac_model        #Mikes model 
-from .Pass_Model_JP import predict_pass_probability      #JP model
+from .Pass_Model_JP import execute_pass_model            #JP model
 
 #####################################
 #   Helper Functions for Play Class and Model Input Processing
@@ -83,6 +83,7 @@ class Play:
         # ydstogo=None,
         # down=None,
         qtr=None,
+        quarter=None,
         # shotgun=None,
         off_rank=None,
         def_rank=None,
@@ -93,9 +94,12 @@ class Play:
         # Put new/non-duplicate fields first for this section.
         # ----------------------------
         posteam=None,
+        offense_team=None,
         defteam=None,
+        defense_team=None,
         season=None,
         pass_completion=None,  # Comes from the pass model output.
+        pass_attempt_length=None,
         # LOS=None,
         # goal_to_go=None,
         # down=None,
@@ -120,21 +124,21 @@ class Play:
 
         # Pass model fields
         self.yardline_100 = yardline_100
-        self.qtr = qtr
+        self.qtr = qtr if qtr is not None else quarter
         self.off_rank = off_rank
         self.def_rank = def_rank
 
         # YAC model fields
-        self.posteam = posteam
-        self.defteam = defteam
+        self.posteam = posteam if posteam is not None else offense_team
+        self.defteam = defteam if defteam is not None else defense_team
         self.season = season
         self.pass_completion = pass_completion
 
         # Helpful aliases for model/UI code that may use alternate names.
-        self.offense_team = posteam
-        self.defense_team = defteam
-        self.quarter = qtr
-        self.pass_attempt_length = air_yards
+        self.offense_team = self.posteam
+        self.defense_team = self.defteam
+        self.quarter = self.qtr
+        self.pass_attempt_length = air_yards if air_yards is not None else pass_attempt_length
 
 
 #####################################
@@ -147,7 +151,7 @@ def select_model(play_type):
         return run_model
     elif play_type == "pass":
         #return a list of pass models
-        return [predict_pass_probability, run_yac_model]
+        return [execute_pass_model, run_yac_model]
     else:
         raise ValueError("Invalid play type. Please select either 'run' or 'pass'.")
     
@@ -219,7 +223,7 @@ def model_output(selected_model, data):
         pass_model_output = selected_model[0](data)
 
         #Plug the pass model output into the YAC model and get the output: 
-        data.pass_completion = pass_model_output
+        data.pass_completion = pass_model_output["probability"]
         yac_model_output = selected_model[1](data)
 
         #Return the output of the YAC model to the HTML page:
